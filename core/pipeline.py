@@ -166,7 +166,7 @@ def process_export(path, owner_name, client_name=None, client_phone=None,
             msg["local_id"] = local_id
             if msg.get("type") == "voice" and msg.get("audio_path"):
                 audio_by_local_id[local_id] = msg["audio_path"]
-        db.save_messages(client_id, messages)
+        db.save_messages(client_id, messages, problems=warnings)
 
         _transcribe_pending(client_id, audio_by_local_id, progress_cb, warnings)
 

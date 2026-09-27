@@ -1,27 +1,87 @@
 """Storage.  Owner: D3.
 
-sqlite:///wakil.db by default.  Tables: clients(id, name, phone), messages, items,
-matching core/contracts.py.
+SQLite (wakil.db / WAKIL_DB) locally; Postgres when DATABASE_URL is a postgres URL.
+Tables: clients(id, name, phone), messages, items, matching core/contracts.py.
+
+Which backend is in use is decided once, here, from the environment:
+  WAKIL_DB set            -> SQLite at that path (tests and local demos)
+  DATABASE_URL postgres   -> Postgres, which is what Streamlit Cloud and the webhook
+                             server share so both see the same rows
+  neither                 -> SQLite at ./wakil.db
+Every function below goes through _conn() and the SQL is written to run unchanged on
+both engines, so this file never has to branch on backend outside connect().
 
 Two id spaces, and confusing them is the classic bug here:
-  * messages.id        the SQLite row primary key, global and ever-growing
+  * messages.id        the row primary key, global and ever-growing
   * messages.local_id  the per-chat sequential id the parser assigned, and the value
-                       every Item.source_message_id points at ("view source")
+                        every Item.source_message_id points at ("view source")
 Every read helper that a source_message_id can reach accepts either, so callers on
 either side of the contract still get the right row.
 """
 import contextlib
 import os
+import re
 import sqlite3
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 from core.parser import mask_phone
 
-# D3 decision: sqlite stays.  If a hosted Postgres URL ever lands, the engine is the
-# only thing that changes here - every function below already goes through _conn().
 DB_PATH = os.getenv("WAKIL_DB") or "wakil.db"
+DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
+_PG = not os.getenv("WAKIL_DB") and DATABASE_URL.startswith(
+    ("postgres://", "postgresql://"))
 
 _SENDER_ALIASES = {"owner": "me", "me": "me", "client": "client"}
 _SENDERS = ("me", "client")
+_VALID_TYPES = ("text", "voice")
+
+# The only schema this module is ever allowed to DROP a populated one out of.  See
+# _drop_refusal for why that needs saying out loud.
+_TEST_SCHEMA = "wakil_test"
+
+_pool = None
+_pg_schema_ok = False
+
+
+def backend():
+    return "postgres" if _PG else "sqlite"
+
+
+def describe():
+    """Where the data lives, safe to log: the password is masked."""
+    if not _PG:
+        return f"sqlite:{DB_PATH}"
+    parts = urlsplit(DATABASE_URL)
+    host = parts.hostname or ""
+    if parts.port:
+        host += f":{parts.port}"
+    netloc = f"{parts.username}:***@{host}" if parts.username else host
+    return urlunsplit((parts.scheme, netloc, parts.path, "", ""))
+
+
+def _pg_search_path():
+    """The schema a Postgres URL selects, from options=-csearch_path=NAME."""
+    options = parse_qs(urlsplit(DATABASE_URL).query).get("options", [""])[0]
+    match = re.search(r"search_path\s*=\s*([^\s,]+)", options)
+    return match.group(1).strip("\"'") if match else "public"
+
+
+def _drop_refusal(schema, had_tables):
+    """Why dropping every table here would be wrong, or None if it is fine.
+
+    _rebuild_schema() runs DROP TABLE against whatever schema the connection is
+    pointed at.  That is exactly right for a scratch SQLite file and for the
+    throwaway *_test schema the test suite wipes on every test - and catastrophic
+    for anything else, because a TEST_DATABASE_URL that lost its search_path
+    option would otherwise quietly empty the shared database.  So: a populated
+    schema other than the test one is refused, loudly.
+    """
+    if not had_tables:
+        return None                      # nothing to lose: bootstrapping a new one
+    if schema == _TEST_SCHEMA:
+        return None
+    return (f"schema {schema!r} already has tables and is not {_TEST_SCHEMA!r}; "
+            "refusing to drop them")
 
 
 def _norm_sender(value):
@@ -29,7 +89,80 @@ def _norm_sender(value):
     return _SENDER_ALIASES.get((value or "").strip().lower(), "client")
 
 
+def _pg_pool():
+    global _pool
+    if _pool is None:
+        from psycopg2.pool import ThreadedConnectionPool  # Streamlit serves each session on its own thread
+        _pool = ThreadedConnectionPool(1, 8, DATABASE_URL, connect_timeout=10)
+        print(f"[db] backend=postgres {describe()}")
+    return _pool
+
+
+def close_pool():
+    global _pool, _pg_schema_ok
+    if _pool is not None:
+        _pool.closeall()
+    _pool, _pg_schema_ok = None, False
+
+
+class _PgCursor:
+    def __init__(self, cur):
+        self._cur = cur
+
+    def fetchone(self):
+        return self._cur.fetchone() if self._cur.description else None
+
+    def fetchall(self):
+        return self._cur.fetchall() if self._cur.description else []
+
+    def __iter__(self):
+        return iter(self.fetchall())
+
+    @property
+    def rowcount(self):
+        return self._cur.rowcount
+
+
+class _PgConn:
+    """sqlite3-shaped facade over a pooled psycopg2 connection."""
+
+    def __init__(self):
+        import psycopg2
+        pool = _pg_pool()
+        raw = pool.getconn()
+        try:
+            with raw.cursor() as cur:
+                cur.execute("SELECT 1")
+        except psycopg2.Error:  # the server closed this idle pooled connection
+            pool.putconn(raw, close=True)
+            raw = pool.getconn()
+        self.raw = raw
+
+    def execute(self, sql, params=()):
+        from psycopg2.extras import RealDictCursor
+        if "%" in sql:
+            raise ValueError(f"% is reserved by psycopg2, use ? placeholders: {sql}")
+        cur = self.raw.cursor(cursor_factory=RealDictCursor)
+        cur.execute(sql.replace("?", "%s"), tuple(params))
+        return _PgCursor(cur)
+
+    def executescript(self, script):
+        with self.raw.cursor() as cur:
+            cur.execute(script)
+
+    def commit(self):
+        self.raw.commit()
+
+    def rollback(self):
+        self.raw.rollback()
+
+    def close(self):
+        _pg_pool().putconn(self.raw)
+
+
 def connect():
+    if _PG:
+        return _PgConn()
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     return conn
@@ -50,11 +183,15 @@ def _conn():
 
 
 def _columns(conn, table):
+    if _PG:
+        return {r["column_name"] for r in conn.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = current_schema() AND table_name = ?", (table,))}
     return {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
 
 
 def _rebuild_schema(conn):
-    """Drop all three tables.
+    """Drop all three tables, but only report it if anything was actually there.
 
     Only ever called when _has_schema() has already decided the schema is unusable,
     and the reason is usually a CHECK constraint: SQLite cannot ALTER one, so the
@@ -62,13 +199,26 @@ def _rebuild_schema(conn):
     'me' no matter what CREATE TABLE IF NOT EXISTS does.  These files are local
     scratch (gitignored) and the chat export is the real source of truth, so
     rebuilding is both the only option and the correct one.
+
+    A brand new empty file lands here too, and must stay silent: telling a first
+    time user their database "had an older schema" is both false and alarming.
     """
+    had_tables = any(_columns(conn, table) for table in _REQUIRED_COLUMNS)
+    # Postgres only.  A local SQLite file is scratch by definition, so wiping it is
+    # the point; on a shared server the same DROP pointed at the wrong schema is the
+    # disaster this refuses.
+    refusal = _drop_refusal(_pg_search_path(), had_tables) if _PG else None
+    if refusal:
+        raise RuntimeError(
+            f"[db] cannot rebuild the schema: {refusal}. Set WAKIL_DB to use a local "
+            "SQLite file, or point DATABASE_URL at a dedicated throwaway schema.")
     conn.executescript(
         "DROP TABLE IF EXISTS items;"
         "DROP TABLE IF EXISTS messages;"
         "DROP TABLE IF EXISTS clients;")
-    print(f"[db] '{DB_PATH}' had an older schema and was rebuilt. "
-          "Re-import your chats to refill it.")
+    if had_tables:
+        print(f"[db] '{describe()}' had an older schema and was rebuilt. "
+              "Re-import your chats to refill it.")
 
 
 # Every column the code below reads or writes.  A table that exists but is missing
@@ -95,16 +245,23 @@ def _ensure_schema(conn):
 
     Called on every connection, not just at import: on Streamlit Community Cloud the
     filesystem is wiped on redeploy, so a long-running app can find its .db gone and
-    would otherwise fail with "no such table" on the next query.
+    would otherwise fail with "no such table" on the next query.  On Postgres the
+    check runs once per process, because the database is shared and does not vanish
+    between requests - and re-checking a shared schema on every query would mean
+    every one of them racing to rebuild it.
     """
-    if _has_schema(conn):
+    global _pg_schema_ok
+    if _PG and _pg_schema_ok:
         return
-    _create_schema(conn)
+    if not _has_schema(conn):
+        _create_schema(conn)
+    _pg_schema_ok = _PG
 
 
-def _create_schema(conn):
-    _rebuild_schema(conn)
-    conn.executescript("""
+# The DDL, verbatim, for both engines.  _create_schema() translates the two
+# SQLite-only spellings below into their Postgres equivalents; everything else in
+# here is already valid on both.
+_SCHEMA_SQL = """
             CREATE TABLE IF NOT EXISTS clients (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
@@ -145,7 +302,16 @@ def _create_schema(conn):
                 ON items(client_id, status);
             CREATE INDEX IF NOT EXISTS idx_items_source
                 ON items(client_id, source_message_id);
-        """)
+        """
+
+
+def _create_schema(conn):
+    _rebuild_schema(conn)
+    ddl = _SCHEMA_SQL
+    if _PG:
+        ddl = (ddl.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+                  .replace("amount_mad REAL", "amount_mad DOUBLE PRECISION"))
+    conn.executescript(ddl)
 
 
 def init_db():
@@ -155,8 +321,10 @@ def init_db():
     rebuilds it if absent.  Kept so a dev can force a fresh start with
     `python -c "from core import db; db.init_db()"`.
     """
+    global _pg_schema_ok
     with _conn() as conn:
         _create_schema(conn)
+    _pg_schema_ok = _PG
 
 
 # --------------------------------------------------------------------------- clients
@@ -164,7 +332,7 @@ def init_db():
 def get_clients():
     with _conn() as conn:
         return [dict(r) for r in conn.execute(
-            "SELECT * FROM clients ORDER BY name COLLATE NOCASE")]
+            "SELECT * FROM clients ORDER BY LOWER(name), name")]
 
 
 def get_client(client_id):
@@ -192,9 +360,11 @@ def get_or_create_client(name, phone=None, summary=None):
                 conn.execute("UPDATE clients SET summary = ? WHERE id = ?",
                              (summary, row["id"]))
             return row["id"]
-        cur = conn.execute("INSERT INTO clients (name, phone, summary) VALUES (?,?,?)",
-                           (name, phone, summary))
-        return cur.lastrowid
+        # RETURNING rather than lastrowid: psycopg2 has no lastrowid, and SQLite has
+        # supported RETURNING since 3.35, so this stays one code path for both.
+        return conn.execute(
+            "INSERT INTO clients (name, phone, summary) VALUES (?,?,?) RETURNING id",
+            (name, phone, summary)).fetchone()["id"]
 
 
 def set_client_summary(client_id, summary):
@@ -234,38 +404,94 @@ def existing_message_keys(client_id):
     return {_message_key(r): r["local_id"] for r in rows}
 
 
-def save_messages(client_id, messages):
+def _is_duplicate(exc):
+    """True if this failure was a UNIQUE violation, on either engine.
+
+    sqlite3 says "UNIQUE constraint failed: messages.client_id, messages.local_id";
+    psycopg2 raises UniqueViolation, sqlstate 23505.  Either way ON CONFLICT should
+    have absorbed the duplicate already, so reaching this is the unexpected case.
+    """
+    if getattr(exc, "pgcode", None) == "23505":
+        return True
+    text = str(exc).lower()
+    return ("unique" in text and "constraint" in text) or "duplicate key" in text
+
+
+def save_messages(client_id, messages, problems=None):
     """Insert messages, skipping any (client_id, local_id) already stored.
 
-    Returns (inserted, skipped).
+    Returns (inserted, skipped).  `problems`, if a list is passed, collects
+    human-readable notes about messages that were not stored.
+
+    A re-import trips UNIQUE(client_id, local_id) and is skipped silently, which is
+    the boring case worth handling quietly.  Any *other* IntegrityError is a genuine
+    defect, and it used to be counted as a duplicate too: a malformed message then
+    disappeared from the conversation with nothing logged anywhere, so the dashboard
+    simply showed an incomplete chat and the owner had no way to tell.
+
+    Two things about that, both of which only bite on Postgres:
+
+      * ON CONFLICT DO NOTHING, not catch-and-count.  Postgres aborts the whole
+        transaction on a failed INSERT, so catching the duplicate and carrying on
+        would fail every statement after it.
+      * a SAVEPOINT per message, so that when a genuinely bad message does abort the
+        transaction it takes down one row rather than the rest of the batch.  SQLite
+        supports savepoints too, so this stays one code path.
     """
     inserted = skipped = 0
+
+    def note(text):
+        if problems is None:
+            raise ValueError(text)   # nobody is watching: fail loudly, do not lie
+        problems.append(text)
+
     with _conn() as conn:
         for m in messages:
             local_id = m.get("local_id") or m.get("id")
+            preview = (m.get("content") or "")[:40]
             if not local_id:
+                note(f"A message with no id was dropped: {preview!r}")
                 continue
+
+            msg_type = m.get("type") or "text"
+            if msg_type not in _VALID_TYPES:
+                note(f"Message {local_id} had type {m.get('type')!r}, stored as text: "
+                     f"{preview!r}")
+                msg_type = "text"
+
+            conn.execute("SAVEPOINT one_message")
             try:
-                conn.execute("""
+                cur = conn.execute("""
                     INSERT INTO messages
                         (client_id, local_id, timestamp, sender, type, content,
                          transcript, audio_file, source)
                     VALUES (?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT (client_id, local_id) DO NOTHING
                 """, (
                     client_id,
                     local_id,
                     m["timestamp"],
                     _norm_sender(m.get("sender")),
-                    m.get("type", "text"),
+                    msg_type,
                     m.get("content"),
                     m.get("transcript"),
                     m.get("audio_file") or (
-                        m.get("content") if m.get("type") == "voice" else None),
+                        m.get("content") if msg_type == "voice" else None),
                     m.get("source", "export"),
                 ))
-                inserted += 1
-            except sqlite3.IntegrityError:
-                skipped += 1  # re-import of an already stored message
+                conn.execute("RELEASE SAVEPOINT one_message")
+                if cur.rowcount:
+                    inserted += 1
+                else:
+                    skipped += 1  # re-import of an already stored message
+            except Exception as exc:  # sqlite3.IntegrityError, or psycopg2.Error
+                conn.execute("ROLLBACK TO SAVEPOINT one_message")
+                conn.execute("RELEASE SAVEPOINT one_message")
+                if _is_duplicate(exc):
+                    skipped += 1  # some other UNIQUE constraint, not the expected one
+                else:
+                    note(f"Message {local_id} was rejected by the database "
+                         f"({exc}): {preview!r}")
     return inserted, skipped
 
 
