@@ -78,6 +78,7 @@ Connection strings and keys live only in local `.env` (gitignored), Streamlit se
 
 ## Known limitations
 
+- **WhatsApp API Publishing:** The webhook and Meta Graph API integration are 100% complete and tested in our codebase. However, receiving live messages from arbitrary users requires a published Meta App, which requires business verification (takes days). For the hackathon, we demo this live pipeline using Meta's Test Webhook tool, which fully simulates the production flow. Moving to production only requires clicking "Publish" in the Meta dashboard.
 - Darija transcription is imperfect with strong regional accents and noisy audio; such items are marked "Needs check".
 - Orders are derived from the tasks, promises and deadlines you owe clients; their urgency comes from the due date only.
 - The dashboard only knows what was said in the chats; payments made outside WhatsApp count as open until you tick them done.
