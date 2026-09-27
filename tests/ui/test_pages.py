@@ -40,3 +40,9 @@ def test_brief_panel_generates_brief_then_draft(fake_backend):
     assert "WA draft for payment_reminder" in codes and "Email draft for payment_reminder" in codes
     at.run()  # rerun reuses the cached brief and draft
     assert fake_backend["brief_calls"] == ["Ahmed Benali"] and fake_backend["draft_calls"] == ["payment_reminder"]
+
+
+def test_app_shell_runs_dashboard_by_default(fake_backend):
+    at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=20).run()
+    assert not at.exception
+    assert at.title[0].value == "Dashboard"
