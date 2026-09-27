@@ -1,0 +1,25 @@
+# Secrets
+.env
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Runtime data (local DB, uploads, audio, transcript cache)
+data/
+*.db
+*.sqlite
+transcripts_cache.json
+*.opus
+*.mp3
+*.wav
+!tests/data/**/*.opus
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

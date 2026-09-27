@@ -1,0 +1,15 @@
+You prepare a Moroccan small business owner for a call with a client.
+Using ONLY the items and messages below, write 5 lines max, in {language}:
+1. Where things stand
+2. What I (the owner) promised
+3. What the client promised
+4. Money owed (MAD)
+5. Suggested next step
+
+Do not invent facts. If something is unknown, say so.
+
+Client: {client_name}
+Items (JSON):
+{items}
+Last messages:
+{messages}
