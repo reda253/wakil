@@ -107,7 +107,7 @@ def _drop_refusal(schema, had_tables):
               "on purpose, as asked.")
         return None
     return (f"schema {schema!r} already has tables and is not {_TEST_SCHEMA!r}; "
-            f"refusing to drop them. Set {_ALLOW_DROP_ENV}=1 if you mean it.")
+            f"refusing to drop them. Set {_ALLOW_DROP_ENV}=1 if you mean it")
 
 
 def _norm_sender(value):
@@ -341,15 +341,26 @@ def _create_schema(conn):
 
 
 def init_db():
-    """Explicitly create the schema.
+    """Explicitly create the schema, dropping whatever was there.
 
     Not needed by callers any more: every connection checks for the schema and
     rebuilds it if absent.  Kept so a dev can force a fresh start with
     `python -c "from core import db; db.init_db()"`.
     """
     global _pg_schema_ok
-    with _conn() as conn:
+    # connect() rather than _conn(): _conn() would ensure the schema first, and this
+    # rebuild would then trip its own drop guard on the tables _conn() had just
+    # created - so a first run against an empty Postgres schema used to fail on the
+    # second pass.  One create, not two.
+    conn = connect()
+    try:
         _create_schema(conn)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
     _pg_schema_ok = _PG
 
 

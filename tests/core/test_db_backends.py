@@ -313,3 +313,31 @@ def test_init_db_is_idempotent_on_both_backends(db):
     db.init_db()                     # rebuilds, so the row goes but the schema stays
     assert db.get_clients() == []
     assert db.backend() in ("sqlite", "postgres")
+
+
+def test_init_db_on_a_fresh_postgres_schema_does_not_trip_its_own_guard(db):
+    """init_db() used to create the schema twice and fail on the second pass.
+
+    _conn() ensures the schema, then init_db() asked for a rebuild, and that rebuild
+    saw the tables _conn() had just made and refused - so a *first* run against an
+    empty database failed while a re-run worked.  SQLite cannot catch this: it has no
+    drop guard, so its double create is invisible.
+
+    The fixture has already created the schema, so drop the tables to get back to the
+    genuinely-empty state that used to fail.
+    """
+    if db.backend() != "postgres":
+        pytest.skip("needs TEST_DATABASE_URL")
+    conn = db.connect()             # empty again, as a brand new database would be
+    try:
+        conn.executescript("DROP TABLE IF EXISTS items;DROP TABLE IF EXISTS messages;"
+                           "DROP TABLE IF EXISTS clients;")
+        conn.commit()
+    finally:
+        conn.close()
+    db.close_pool()
+
+    db.init_db()                     # the thing that used to raise
+    cid = db.get_or_create_client("Karim")
+    assert db.save_messages(cid, [_msg(1, "hello")]) == (1, 0)
+    assert db.get_messages(cid)
