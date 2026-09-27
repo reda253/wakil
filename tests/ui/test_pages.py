@@ -176,3 +176,20 @@ def test_brief_page_llm_failure_shows_error(fake_backend, monkeypatch):
     at.button(key="page_gen").click().run()
     assert not at.exception
     assert at.error and "Could not prepare the brief" in at.error[0].value
+
+
+def test_brief_panel_failed_draft_not_retried_on_rerun(fake_backend, monkeypatch):
+    from core import ai
+    calls = []
+
+    def boom(brief, goal):
+        calls.append(goal)
+        raise RuntimeError("provider down")
+    monkeypatch.setattr(ai, "draft_reply", boom)
+    at = AppTest.from_function(_brief_app, default_timeout=15).run()
+    at.button(key="t_gen").click().run()
+    at.session_state["t_goal"] = "payment_reminder"
+    at.run()
+    assert at.error and "Could not write the draft" in at.error[0].value
+    at.run()  # an unrelated rerun must not call the LLM again
+    assert calls == ["payment_reminder"] and not at.exception

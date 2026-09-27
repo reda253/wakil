@@ -199,10 +199,15 @@ def brief_panel(clients, key):
         with st.spinner("Writing the draft..."):
             try:
                 drafts[(cid, goal)] = ai.draft_reply(brief, goal)
-            except Exception as e:
-                st.error(f"Could not write the draft right now. Please try again. ({type(e).__name__})")
+            except Exception as e:  # cache the failure so unrelated reruns do not call the LLM again
+                drafts[(cid, goal)] = {"error": type(e).__name__}
     draft = drafts.get((cid, goal)) if goal else None
-    if draft:
+    if draft and draft.get("error"):
+        st.error(f"Could not write the draft right now. Please try again. ({draft['error']})")
+        if st.button("Try again", key=f"{key}_retry"):
+            del drafts[(cid, goal)]
+            st.rerun()
+    elif draft:
         st.caption("WhatsApp (copy with the icon on the right)")
         st.code(draft.get("whatsapp", ""), language=None, wrap_lines=True)
         st.link_button("Open in WhatsApp", vm.whatsapp_link(draft.get("whatsapp", ""), by_id[cid].get("phone")),

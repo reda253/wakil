@@ -126,3 +126,8 @@ def test_visual_round_fixes():
     assert cfg["client"]["toolbarMode"] == "minimal"  # hides Streamlit's Deploy menu
     src = (ROOT / "ui" / "components.py").read_text(encoding="utf-8")
     assert 'st.popover("Details")' in src  # no second chevron icon
+
+
+def test_client_header_hides_masked_phone():
+    assert "[PHONE]" not in h.client_header_html(dict(CLIENTS[0], phone="[PHONE]"), 1, 0)
+    assert "+212600000001" in h.client_header_html(CLIENTS[0], 1, 0)

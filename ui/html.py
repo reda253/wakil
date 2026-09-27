@@ -5,7 +5,7 @@ danger = overdue/urgent, warn = needs check, everything else neutral.
 """
 from html import escape
 
-from ui.viewmodel import URGENCY_LABELS, classify_due, due_label, fmt_mad, initials
+from ui.viewmodel import URGENCY_LABELS, classify_due, dialable, due_label, fmt_mad, initials
 
 _OWNER_SENDERS = ("owner", "me")  # contracts.py says "owner"; core/db.py stores "me"
 
@@ -88,7 +88,7 @@ def message_html(message):
 
 def client_header_html(client, open_count, owed_amount):
     name = client.get("name") or "Unknown client"
-    phone = f'<div class="w-caption">{esc(client["phone"])}</div>' if client.get("phone") else ""
+    phone = f'<div class="w-caption">{esc(client["phone"])}</div>' if dialable(client.get("phone")) else ""
     owed = badge(f"Owes {fmt_mad(owed_amount)}") if owed_amount else badge("Nothing owed")
     return (f'<div class="w-client-head"><span class="w-avatar w-avatar-lg">{esc(initials(name))}</span>'
             f'<div><div class="w-client-name">{esc(name)}</div>{phone}</div>'

@@ -143,3 +143,9 @@ def test_whatsapp_link():
 def test_whatsapp_link_masked_phone():
     assert vm.whatsapp_link("Hi", "+212 6** ** ** 12") == "https://wa.me/?text=Hi"
     assert vm.whatsapp_link("Hi", "123") == "https://wa.me/?text=Hi"
+
+
+def test_parse_brief_strips_markdown_and_line_prefix():
+    text = "**Status:** ongoing\n1. **My promises**: deliver\nLine 3 - Client's promises: pay Friday"
+    assert vm.parse_brief(text) == [("Status", "ongoing"), ("My promises", "deliver"),
+                                    ("Client's promises", "pay Friday")]

@@ -206,7 +206,9 @@ def parse_brief(text):
     """'Label: body' lines -> [(label, body)]; lines without a short label -> ('', line)."""
     out = []
     for line in str(text or "").splitlines():
-        line = re.sub(r"^\s*(\d+[.)]|[-*])\s*", "", line).strip()
+        line = re.sub(r"^\s*(\d+[.)]|[-*])\s", "", line)
+        line = re.sub(r"[*_`#]", "", line)  # LLMs often bold the labels: **Status:**
+        line = re.sub(r"^\s*line\s*\d+\s*[-:.]\s*", "", line, flags=re.I).strip()
         if not line:
             continue
         label, sep, body = line.partition(":")
@@ -217,10 +219,13 @@ def parse_brief(text):
     return out
 
 
-def whatsapp_link(text, phone=None):
-    """wa.me link that only PRE-FILLS the message; the owner still presses send."""
+def dialable(phone):
+    """Digits of a real phone number, or '' when it is masked ('[PHONE]', '6** **') or too short."""
     raw = str(phone or "")
     digits = "".join(ch for ch in raw if ch.isdigit())
-    if _MASK_CHARS & set(raw) or len(digits) < 8:
-        digits = ""
-    return f"https://wa.me/{digits}?text={quote(str(text or ''), safe='')}"
+    return "" if _MASK_CHARS & set(raw) or len(digits) < 8 else digits
+
+
+def whatsapp_link(text, phone=None):
+    """wa.me link that only PRE-FILLS the message; the owner still presses send."""
+    return f"https://wa.me/{dialable(phone)}?text={quote(str(text or ''), safe='')}"
