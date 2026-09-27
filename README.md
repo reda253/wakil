@@ -47,11 +47,34 @@ python -m pytest tests/ui -q
 
 UI tests use an in-memory fake of `core.db` and `core.ai`, so they run without API keys or a database. Set `WAKIL_TODAY=2026-09-27` to pin "today" for demos.
 
-## Deploy (Streamlit Community Cloud)
+## Deploy
 
-1. share.streamlit.io -> New app -> repo `reda253/wakil`, branch `main`, main file `app.py`, Python 3.12.
-2. Advanced settings -> Secrets: the keys from `.env.example` in TOML form, e.g. `GEMINI_API_KEY = "..."`.
-3. `packages.txt` installs ffmpeg. Open the link on a phone and in a private window.
+| Layer | Where | Notes |
+|---|---|---|
+| App | Streamlit Community Cloud | Deploys from GitHub `main`; every push redeploys. |
+| Database | Guepard Cloud Postgres 16 | One endpoint; demo data in schema `public`, pytest in schema `wakil_test`. Reset with a Guepard snapshot. |
+| Speech | Brev GPU instance `wakil-whisper` (faster-whisper large-v3, port 8000) | Groq Whisper is the automatic fallback. |
+| LLM | Gemini, then Groq | `BREV_LLM_URL` empty: no model is served on Brev. |
+
+### Streamlit Community Cloud
+
+1. share.streamlit.io -> Create app -> repo `reda253/wakil`, branch `main`, main file `app.py`. Advanced settings: Python 3.12.
+2. Advanced settings -> Secrets (TOML, values in quotes; root-level keys become environment variables):
+
+   ```toml
+   DATABASE_URL = "postgresql://guepard:<password>@<host>:<port>/postgres?sslmode=require"
+   GROQ_API_KEY = "..."
+   GEMINI_API_KEY = "..."
+   BREV_WHISPER_URL = "https://<brev-host>"
+   WHISPER_TOKEN = "..."   # only once the Whisper server checks it
+   BREV_LLM_URL = ""
+   ```
+
+   Never set `WAKIL_DB` (forces SQLite) or `WAKIL_TODAY` (freezes the date) in the cloud.
+3. `packages.txt` installs ffmpeg for voice notes.
+4. Check: the logs show `[db] backend=postgres ...` with the password masked, and data survives "Reboot app".
+
+Connection strings and keys live only in local `.env` (gitignored), Streamlit secrets, and the Brev instance. Never in the repo or a public channel.
 
 ## Known limitations
 
