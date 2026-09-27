@@ -166,3 +166,9 @@ def test_hero_tiles_stay_two_per_row_on_phones():
     phone = css.split("@media (max-width:640px){", 1)[1]
     assert '.st-key-hero [data-testid="stHorizontalBlock"]{flex-wrap:wrap' in phone
     assert '.st-key-hero [data-testid="stColumn"]{' in phone
+
+
+def test_bigger_logo_and_top_tabs():
+    css = theme.css()
+    assert '[data-testid="stHeaderLogo"]{height:48px' in css
+    assert '[data-testid="stTopNavLink"]{height:38px' in css and "font-size:16px" in css

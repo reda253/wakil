@@ -80,6 +80,11 @@ _CSS = (
     ".stMainBlockContainer{padding-top:5rem!important;padding-bottom:3rem!important;max-width:1320px!important}"
     ".stApp h1{font-size:30px!important;line-height:38px!important;letter-spacing:-.02em!important;padding:0 0 .25rem!important}"
     ".stApp h3{font-size:18px!important;line-height:26px!important;padding:0 0 .25rem!important}"
+    # top bar: bigger logo (fits the 60px header) and bigger nav tabs
+    '[data-testid="stHeaderLogo"]{height:48px!important;max-height:48px!important;width:auto!important}'
+    '[data-testid="stTopNavLink"]{height:38px!important;padding:0 14px!important;gap:8px}'
+    '[data-testid="stTopNavLink"] p,[data-testid="stTopNavLink"] span{font-size:16px!important;line-height:20px!important;font-weight:600}'
+    '[data-testid="stTopNavLink"] [data-testid="stIconMaterial"]{font-size:20px!important}'
     # the one brand color: the dashboard 'Today' hero band
     ".st-key-hero{background:var(--w-brand);border-radius:20px;padding:20px 22px 22px}"
     ".w-hero-eyebrow{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--w-accent)}"
