@@ -135,6 +135,12 @@ def test_pool_recovers_from_closed_connection(monkeypatch):
 # exists to prevent, just wearing a different hat.
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _no_allow_drop(monkeypatch):
+    """Nobody's real .env may make these tests destructive by accident."""
+    monkeypatch.delenv("WAKIL_ALLOW_DROP", raising=False)
+
+
 def test_search_path_is_read_out_of_the_url(monkeypatch):
     from core import db as module
     monkeypatch.delenv("WAKIL_DB", raising=False)
@@ -167,6 +173,44 @@ def test_bootstrapping_an_empty_schema_is_never_refused():
     from core import db
     assert db._drop_refusal("public", had_tables=False) is None
     assert db._drop_refusal("", had_tables=False) is None
+
+
+@pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "on", " 1 "])
+def test_the_allow_drop_opt_in_permits_a_populated_foreign_schema(monkeypatch, value):
+    from core import db
+    monkeypatch.setenv("WAKIL_ALLOW_DROP", value)
+    assert db._drop_refusal("public", had_tables=True) is None
+
+
+@pytest.mark.parametrize("value", ["", "0", "false", "no", "off", "maybe"])
+def test_allow_drop_reads_only_an_explicit_yes(monkeypatch, value):
+    """Anything that is not clearly a yes must leave the guard shut."""
+    from core import db
+    monkeypatch.setenv("WAKIL_ALLOW_DROP", value)
+    assert db._drop_refusal("public", had_tables=True) is not None
+
+
+def test_allow_drop_is_off_unless_it_was_actually_set():
+    from core import db
+    assert db._allow_drop() is False
+    assert db._drop_refusal("public", had_tables=True) is not None
+
+
+def test_rebuild_really_drops_when_the_opt_in_is_set(monkeypatch):
+    """The opt-in wired into _rebuild_schema, not only the helper beside it."""
+    import sqlite3
+    from core import db as module
+    module = importlib.reload(module)
+    monkeypatch.setenv("WAKIL_ALLOW_DROP", "1")
+    monkeypatch.setattr(module, "_PG", True)
+    monkeypatch.setattr(module, "_pg_search_path", lambda: "public")
+    monkeypatch.setattr(module, "_columns", lambda conn, table: {"id", "name"})
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE clients (id INTEGER PRIMARY KEY, name TEXT)")
+    module._rebuild_schema(conn)
+    assert conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'").fetchall() == []
+    conn.close()
 
 
 def test_rebuild_actually_refuses_and_leaves_the_tables_alone(monkeypatch):
@@ -250,8 +294,17 @@ def test_saving_without_a_problems_list_fails_loudly(db):
                                 "type": "text", "content": "orphan"}])
 
 
-def test_describe_names_the_sqlite_path(db):
-    assert db.describe().startswith("sqlite:")
+def test_describe_reports_the_active_backend_without_leaking_the_password(db, request):
+    described = db.describe()
+    if request.node.callspec.params["db"] == "sqlite":
+        assert described == f"sqlite:{db.DB_PATH}"
+    else:
+        assert described.startswith(("postgres://", "postgresql://"))
+        assert "***" in described
+        # the real password must never reach a log line
+        _, _, secret = os.environ["TEST_DATABASE_URL"].split("://", 1)[1].partition("@")[0].partition(":")
+        assert secret, "TEST_DATABASE_URL should carry a password to test against"
+        assert secret not in described
 
 
 def test_init_db_is_idempotent_on_both_backends(db):

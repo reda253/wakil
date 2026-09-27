@@ -24,7 +24,15 @@ import re
 import sqlite3
 from urllib.parse import parse_qs, urlsplit, urlunsplit
 
+from dotenv import load_dotenv
+
 from core.parser import mask_phone
+
+# The backend is decided from the environment at import time, so .env has to be in
+# os.environ *before* the reads below.  app.py loads it too; loading here as well means
+# a script, a test or the webhook server can never silently land on the wrong database
+# just because it imported core.db first.  Existing env vars always win.
+load_dotenv()
 
 DB_PATH = os.getenv("WAKIL_DB") or "wakil.db"
 DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
@@ -38,6 +46,8 @@ _VALID_TYPES = ("text", "voice")
 # The only schema this module is ever allowed to DROP a populated one out of.  See
 # _drop_refusal for why that needs saying out loud.
 _TEST_SCHEMA = "wakil_test"
+# Opt-in that lets that rule be overridden on purpose.  See _drop_refusal.
+_ALLOW_DROP_ENV = "WAKIL_ALLOW_DROP"
 
 _pool = None
 _pg_schema_ok = False
@@ -66,6 +76,11 @@ def _pg_search_path():
     return match.group(1).strip("\"'") if match else "public"
 
 
+def _allow_drop():
+    """Has someone deliberately asked to wipe a populated schema?  Never default."""
+    return (os.getenv(_ALLOW_DROP_ENV) or "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def _drop_refusal(schema, had_tables):
     """Why dropping every table here would be wrong, or None if it is fine.
 
@@ -75,13 +90,24 @@ def _drop_refusal(schema, had_tables):
     for anything else, because a TEST_DATABASE_URL that lost its search_path
     option would otherwise quietly empty the shared database.  So: a populated
     schema other than the test one is refused, loudly.
+
+    The one exception is _ALLOW_DROP_ENV, which is how a person says out loud
+    "yes, empty this one on purpose" - seeding the demo database from scratch, or
+    rehearsing that seed.  It has to be an env var rather than an init_db() argument
+    because the test fixtures call init_db() too: that is precisely the
+    misconfigured-TEST_DATABASE_URL disaster the guard exists to stop, so the
+    opt-in cannot be something the destructive path grants itself.
     """
     if not had_tables:
         return None                      # nothing to lose: bootstrapping a new one
     if schema == _TEST_SCHEMA:
         return None
+    if _allow_drop():
+        print(f"[db] {_ALLOW_DROP_ENV} is set: dropping every table in {schema!r} "
+              "on purpose, as asked.")
+        return None
     return (f"schema {schema!r} already has tables and is not {_TEST_SCHEMA!r}; "
-            "refusing to drop them")
+            f"refusing to drop them. Set {_ALLOW_DROP_ENV}=1 if you mean it.")
 
 
 def _norm_sender(value):
