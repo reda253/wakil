@@ -153,3 +153,26 @@ def test_client_page_empty(fake_backend, monkeypatch):
     monkeypatch.setattr(db, "get_clients", lambda: [])
     at = AppTest.from_file(CLIENT, default_timeout=20).run()
     assert not at.exception
+
+
+BRIEF_PAGE = str(ROOT / "pages" / "4_Brief_Reply.py")
+
+
+def test_brief_page_flow(fake_backend):
+    at = AppTest.from_file(BRIEF_PAGE, default_timeout=20).run()
+    assert not at.exception
+    assert at.title[0].value == "Brief & reply"
+    at.button(key="page_gen").click().run()
+    assert fake_backend["brief_calls"] == ["Ahmed Benali"]
+
+
+def test_brief_page_llm_failure_shows_error(fake_backend, monkeypatch):
+    from core import ai
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("provider down")
+    monkeypatch.setattr(ai, "make_brief", boom)
+    at = AppTest.from_file(BRIEF_PAGE, default_timeout=20).run()
+    at.button(key="page_gen").click().run()
+    assert not at.exception
+    assert at.error and "Could not prepare the brief" in at.error[0].value
