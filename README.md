@@ -76,6 +76,17 @@ UI tests use an in-memory fake of `core.db` and `core.ai`, so they run without A
 
 Connection strings and keys live only in local `.env` (gitignored), Streamlit secrets, and the Brev instance. Never in the repo or a public channel.
 
+### Demo-day runbook
+
+Guepard deployment `75cc41e8-61ec-46cf-8af0-3dc035a8d18b`, clean-data snapshot `demo-seed` = `a9b2de40-1834-4a5d-9456-f22e2e830966`.
+
+1. T-60 min, database up: `guepard compute status -x <deployment> | grep "Database is"` says `running`; if `stopped`, `guepard compute start -x <deployment>` (about 20 s). Do not show the full status output on screen: it prints the connection password.
+2. T-60 min, GPU up: `brev start wakil-whisper` if stopped, then `curl https://8000-8fh03aaw8.gobrev.dev/health` returns `"status":"ok"`.
+3. T-45 min, clean data: `guepard checkout -x <deployment> -s <demo-seed>`; the database is back in about 30 s and the app reconnects on its own.
+4. T-30 min: full click-through on https://wakilai.streamlit.app (Dashboard, Orders, Clients & history, Brief & reply, Import one short chat with a voice note), then reset again (step 3).
+5. Fallback if the cloud app is down: run locally with `.venv/Scripts/streamlit run app.py` (same Guepard data through `.env`), or `WAKIL_DB=demo.db` for a local copy with no network.
+6. After the demo: `brev stop wakil-whisper` to save GPU credit.
+
 ## Known limitations
 
 - **WhatsApp API Publishing:** The webhook and Meta Graph API integration are 100% complete and tested in our codebase. However, receiving live messages from arbitrary users requires a published Meta App, which requires business verification (takes days). For the hackathon, we demo this live pipeline using Meta's Test Webhook tool, which fully simulates the production flow. Moving to production only requires clicking "Publish" in the Meta dashboard.
