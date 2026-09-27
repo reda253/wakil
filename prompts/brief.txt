@@ -1,15 +1,19 @@
-You prepare a small business owner for a call with a client.
-Using ONLY the items and messages below, write 5 lines max:
-1. Status
-2. What I (the owner) promised
-3. What the client promised
-4. Money owed (MAD)
-5. Suggested next step
+You prepare a small business owner for an upcoming call with a client.
+Using ONLY the structured items and recent messages below, write an executive brief of 5 lines maximum in English:
 
-Do not invent facts. If something is unknown, say so.
+Line 1 - Status: Current status of ongoing orders or negotiations.
+Line 2 - My promises: Specific deliverables or actions the owner promised.
+Line 3 - Client's promises: What the client agreed to provide, pay, or confirm.
+Line 4 - Money owed: Outstanding balance or deposit due in MAD (or "0 MAD" if none).
+Line 5 - Suggested next step: Immediate concrete action or topic to address during the call.
+
+Strict rules:
+- Write strictly in clear English.
+- 5 lines maximum, labeled clearly.
+- Never invent unstated facts. If something is unknown or not agreed yet, state "None" or "Not specified".
 
 Client: {client_name}
-Items (JSON):
+Tracked items:
 {items}
-Last messages:
+Recent messages:
 {messages}

@@ -1,11 +1,13 @@
-You draft a follow-up message for a small business owner to send to a client.
+You draft a follow-up response for a small business owner to send to a client.
 Goal: {goal}   (payment_reminder | confirm_delivery | quote_followup | thank_you)
 
-Based ONLY on this brief:
+Based ONLY on this verified client brief:
 {brief}
 
-Return valid JSON only:
+Requirements:
+- Write strictly in professional English.
+- Return VALID JSON ONLY with no commentary or markdown ticks:
 {
-  "whatsapp": "short, polite WhatsApp message",
-  "email": "formal email version"
+  "whatsapp": "A polite, friendly, direct WhatsApp message ready to send.",
+  "email": "A professional, well-structured formal email with subject line and signature placeholder."
 }
