@@ -87,3 +87,44 @@ def test_dashboard_empty_backend(fake_backend, monkeypatch):
     monkeypatch.setattr(db, "get_money_owed", lambda: [])
     at = AppTest.from_file(DASH, default_timeout=20).run()
     assert not at.exception
+
+
+ORDERS = str(ROOT / "pages" / "5_Orders.py")
+
+
+def _order_keys(at):
+    return [c.key for c in at.checkbox]
+
+
+def test_orders_page_lists_by_urgency(fake_backend):
+    at = AppTest.from_file(ORDERS, default_timeout=20).run()
+    assert not at.exception
+    assert at.title[0].value == "Orders"
+    assert _order_keys(at) == ["orders_item_done_6", "orders_item_done_2", "orders_item_done_3", "orders_item_done_7"]
+
+
+def test_orders_page_filter_urgent(fake_backend):
+    at = AppTest.from_file(ORDERS, default_timeout=20)
+    at.session_state["orders_level"] = "urgent"
+    at.run()
+    assert _order_keys(at) == ["orders_item_done_6"]
+
+
+def test_orders_page_filter_client(fake_backend):
+    at = AppTest.from_file(ORDERS, default_timeout=20)
+    at.session_state["orders_client"] = 1
+    at.run()
+    assert _order_keys(at) == ["orders_item_done_2", "orders_item_done_7"]
+
+
+def test_orders_page_mark_delivered(fake_backend):
+    at = AppTest.from_file(ORDERS, default_timeout=20).run()
+    at.checkbox(key="orders_item_done_6").check().run()
+    assert fake_backend["status_calls"] == [(6, "done")]
+
+
+def test_orders_page_empty(fake_backend, monkeypatch):
+    from core import db
+    monkeypatch.setattr(db, "get_items", lambda client_id=None, status="open": [])
+    at = AppTest.from_file(ORDERS, default_timeout=20).run()
+    assert not at.exception and _order_keys(at) == []
