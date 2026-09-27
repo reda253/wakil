@@ -105,3 +105,15 @@ def quote_html(text):
 
 def empty_html(text):
     return f'<div class="w-empty">{esc(text)}</div>'
+
+
+def hero_html(eyebrow, title):
+    return (f'<div class="w-hero"><div class="w-hero-eyebrow">{esc(eyebrow)}</div>'
+            f'<div class="w-hero-title">{esc(title)}</div></div>')
+
+
+def order_row_html(row):
+    u = row["urgency"]
+    return (f'<div class="w-order">{badge(URGENCY_LABELS[u], "danger" if u == "urgent" else "neutral")}'
+            f'<div><div class="w-order-desc">{esc(row["item"].get("description", ""))}</div>'
+            f'<div class="w-caption">{esc(row["client"])} · {esc(row["due_label"])}</div></div></div>')

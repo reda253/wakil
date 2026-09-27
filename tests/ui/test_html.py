@@ -131,3 +131,31 @@ def test_visual_round_fixes():
 def test_client_header_hides_masked_phone():
     assert "[PHONE]" not in h.client_header_html(dict(CLIENTS[0], phone="[PHONE]"), 1, 0)
     assert "+212600000001" in h.client_header_html(CLIENTS[0], 1, 0)
+
+
+def test_hero_html_escapes():
+    out = h.hero_html("Sunday 27 September", "<b>2</b> items late.")
+    assert "w-hero-title" in out and "&lt;b&gt;2&lt;/b&gt;" in out and "Sunday 27 September" in out
+
+
+def test_order_row_html():
+    row = vm.orders(open_items(), CLIENTS, T)[0]
+    out = h.order_row_html(row)
+    assert ">Urgent<" in out and "w-danger" in out
+    assert "Cut fabric for curtains" in out and "Sara · 1 day late" in out
+
+
+def test_order_row_html_escapes():
+    row = dict(vm.orders(open_items(), CLIENTS, T)[1], client="<i>X</i>")
+    row["item"] = dict(row["item"], description="<script>x</script>")
+    out = h.order_row_html(row)
+    assert "<script>" not in out and "&lt;i&gt;X&lt;/i&gt;" in out and ">High<" in out and "w-danger" not in out
+
+
+def test_theme_has_one_brand_color_for_the_hero():
+    css = theme.css()
+    assert "--w-brand:#173B35" in css and ".st-key-hero{" in css
+    assert "prefers-reduced-motion:no-preference" in css
+    motion = css.split("@media (prefers-reduced-motion:no-preference){", 1)[1]
+    assert css.count("scale(.97)") == motion.count("scale(.97)") > 0  # all press motion is motion-safe
+    assert ".stMainBlockContainer{padding-top:1.5rem" in css

@@ -5,6 +5,7 @@ TOKENS = {
     "canvas": "#FDFBF7", "card": "#FFFFFF", "subtle": "#F7F5F0",
     "border": "#EBE8E1", "border_strong": "#CBD5E1",
     "text": "#0F172A", "muted": "#64748B",
+    "brand": "#173B35",
     "accent": "#CCF062", "accent_deep": "#A3D422", "accent_soft": "#F2FBD2",
     "danger": "#BA1A1A", "danger_soft": "#FFDAD6",
     "warn": "#9A3412", "warn_soft": "#FFF3E6",
@@ -75,6 +76,34 @@ _CSS = (
     # selected filter pill: Streamlit paints its text lime on a lime tint, unreadable
     'button[data-variant="segmented_control"][aria-checked="true"]{color:var(--w-text)!important;'
     "background:var(--w-accent-soft)!important;border-color:var(--w-accent-deep)!important;font-weight:600}"
+    # density: less dead space above and between blocks
+    ".stMainBlockContainer{padding-top:1.5rem!important;padding-bottom:3rem!important;max-width:1320px!important}"
+    ".stApp h1{font-size:30px!important;line-height:38px!important;letter-spacing:-.02em!important;padding:0 0 .25rem!important}"
+    ".stApp h3{font-size:18px!important;line-height:26px!important;padding:0 0 .25rem!important}"
+    # the one brand color: the dashboard 'Today' hero band
+    ".st-key-hero{background:var(--w-brand);border-radius:20px;padding:20px 22px 22px}"
+    ".w-hero-eyebrow{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--w-accent)}"
+    ".w-hero-title{font-size:26px;line-height:34px;font-weight:700;letter-spacing:-.02em;color:#FFFFFF;margin-top:4px}"
+    '.st-key-hero [class*="st-key-metric_"]{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);'
+    "border-radius:14px;padding:14px 16px}"
+    ".st-key-hero .w-metric-value{color:#FFFFFF}"
+    ".st-key-hero .w-caption,.st-key-hero .w-unit{color:rgba(255,255,255,.68)}"
+    ".st-key-hero .w-ico{background:rgba(204,240,98,.16);color:var(--w-accent)}"
+    '.st-key-hero [data-testid="stPopoverButton"]{background:transparent!important;color:rgba(255,255,255,.88)!important;'
+    "border-color:rgba(255,255,255,.22)!important}"
+    # 'Next to deliver' list
+    ".w-order{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--w-border)}"
+    ".w-order:first-child{border-top:0;padding-top:0}"
+    ".w-order .w-badge{margin-top:2px;min-width:60px;justify-content:center}"
+    ".w-order-desc{font-size:14px;line-height:20px;font-weight:600;color:var(--w-text)}"
+    # press feedback (emil-design-eng): transform only, fast strong ease-out, motion-safe
+    "@media (prefers-reduced-motion:no-preference){"
+    '[data-testid="stButton"] button,[data-testid="stPopoverButton"],[data-testid="stLinkButton"] a,'
+    'button[data-variant="segmented_control"]{transition:transform 160ms cubic-bezier(.23,1,.32,1),'
+    "background-color 150ms ease,border-color 150ms ease}"
+    '[data-testid="stButton"] button:active,[data-testid="stPopoverButton"]:active,[data-testid="stLinkButton"] a:active,'
+    'button[data-variant="segmented_control"]:active{transform:scale(.97)}'
+    "}"
 )
 
 
