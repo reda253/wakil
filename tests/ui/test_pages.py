@@ -87,6 +87,17 @@ def test_dashboard_empty_backend(fake_backend, monkeypatch):
     monkeypatch.setattr(db, "get_money_owed", lambda: [])
     at = AppTest.from_file(DASH, default_timeout=20).run()
     assert not at.exception
+    html = " ".join(str(e.proto) for e in at.get("html"))
+    assert "Nothing is late or due today." in html and "0 clients" in html
+
+
+def test_dashboard_hero_says_one_client(fake_backend, monkeypatch):
+    from core import db
+    from tests.ui.conftest import CLIENTS
+    monkeypatch.setattr(db, "get_clients", lambda: [dict(CLIENTS[0])])
+    at = AppTest.from_file(DASH, default_timeout=20).run()
+    html = " ".join(str(e.proto) for e in at.get("html"))
+    assert "· 1 client<" in html
 
 
 ORDERS = str(ROOT / "pages" / "5_Orders.py")

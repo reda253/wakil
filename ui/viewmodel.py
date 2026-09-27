@@ -231,8 +231,13 @@ def whatsapp_link(text, phone=None):
     return f"https://wa.me/{dialable(phone)}?text={quote(str(text or ''), safe='')}"
 
 
+def plural(n, word):
+    """'1 client', '0 clients', '2 items'."""
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
 def _items(n):
-    return f"{n} item{'' if n == 1 else 's'}"
+    return plural(n, "item")
 
 
 def headline(metrics):

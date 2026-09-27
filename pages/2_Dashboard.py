@@ -14,7 +14,7 @@ owed = db.get_money_owed()
 metrics = vm.dashboard_metrics(items, owed, clients, today)
 
 with st.container(key="hero"):
-    st.html(h.hero_html(f"{vm.long_date(today)} · {len(clients)} clients", vm.headline(metrics)))
+    st.html(h.hero_html(f"{vm.long_date(today)} · {vm.plural(len(clients), 'client')}", vm.headline(metrics)))
     ui.metric_row(items, owed, clients, today)
 
 left, right = st.columns([7, 5], gap="medium")

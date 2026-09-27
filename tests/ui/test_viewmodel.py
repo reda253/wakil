@@ -160,3 +160,9 @@ def test_headline():
 
 def test_long_date():
     assert vm.long_date(T) == "Sunday 27 September"
+
+
+def test_plural():
+    assert vm.plural(1, "client") == "1 client"
+    assert vm.plural(0, "client") == "0 clients"
+    assert vm.plural(2, "item") == "2 items"
