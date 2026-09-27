@@ -636,12 +636,20 @@ def set_item_status(item_id, status):
 
 
 def get_money_owed():
-    """[{client, amount_mad}] for open payments the client owes us."""
+    """[{client, amount_mad}] for open money the client owes us.
+
+    Counts promises as well as payments.  "Ana ghadi nsiftlik l'avance ghedda" is a
+    promise carrying 7500 MAD, not a payment, and it is the single most common way
+    money is owed in a trade - so counting only type='payment' reported 0 MAD owed
+    for exactly the conversations this product exists to catch.  Both still require
+    owner='client', status='open' and a real amount, so a settled or unpriced item
+    cannot inflate the total.
+    """
     with _conn() as conn:
         return [dict(r) for r in conn.execute("""
             SELECT clients.name AS client, SUM(items.amount_mad) AS amount_mad
             FROM items JOIN clients ON clients.id = items.client_id
-            WHERE items.type = 'payment' AND items.owner = 'client'
+            WHERE items.type IN ('payment', 'promise') AND items.owner = 'client'
               AND items.status = 'open' AND items.amount_mad IS NOT NULL
             GROUP BY clients.id, clients.name
             ORDER BY amount_mad DESC

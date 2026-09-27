@@ -82,6 +82,39 @@ def test_items_money_owed_and_status(db):
     assert db.get_items() == []
 
 
+def test_a_promised_payment_counts_as_money_owed(db):
+    """A promise to pay is the commonest way money is owed, so it must count.
+
+    Real extraction turns "ghadi nsiftlik l'avance ghedda" into type='promise' with an
+    amount, not type='payment'.  Counting payments alone reported 0 MAD owed for the
+    exact conversation this product exists to catch.
+    """
+    cid = db.get_or_create_client("Ahmed")
+    db.save_messages(cid, [_msg(1, "ok, ghadi nsiftlik l'avance ghedda")])
+    db.save_items(cid, [{
+        "type": "promise", "description": "Send the 50% advance tomorrow",
+        "owner": "client", "amount_mad": 7500, "due_date": "2026-09-28",
+        "source_message_id": 1, "confidence": "high"}])
+    assert db.get_money_owed() == [{"client": "Ahmed", "amount_mad": 7500.0}]
+
+
+def test_money_owed_ignores_my_own_promises_and_unpriced_items(db):
+    cid = db.get_or_create_client("Ahmed")
+    db.save_messages(cid, [_msg(1, "..."), _msg(2, "..."), _msg(3, "...")])
+    db.save_items(cid, [
+        {"type": "promise", "description": "I will deliver Thursday", "owner": "me",
+         "amount_mad": 15000, "due_date": "2026-10-12", "source_message_id": 1,
+         "confidence": "high"},
+        {"type": "task", "description": "Send the invoice", "owner": "me",
+         "amount_mad": None, "due_date": None, "source_message_id": 2,
+         "confidence": "high"},
+        {"type": "question", "description": "How many drawers?", "owner": "client",
+         "amount_mad": None, "due_date": None, "source_message_id": 3,
+         "confidence": "high"},
+    ])
+    assert db.get_money_owed() == []
+
+
 def test_get_message_scoped_by_client(db):
     a = db.get_or_create_client("A")
     b = db.get_or_create_client("B")
