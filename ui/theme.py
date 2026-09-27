@@ -1,14 +1,17 @@
 """Calm design tokens derived from the Stitch system, restrained to one accent.  Owner: D4."""
 import streamlit as st
 
+# (light, dark). A token with one value is the same in both themes. The dark pair
+# resolves through CSS light-dark(), against the color-scheme Streamlit sets on the
+# app for its active theme, so a viewer's theme switch recolors everything at once.
 TOKENS = {
-    "canvas": "#FDFBF7", "card": "#FFFFFF", "subtle": "#F7F5F0",
-    "border": "#EBE8E1", "border_strong": "#CBD5E1",
-    "text": "#0F172A", "muted": "#64748B",
-    "brand": "#173B35",
-    "accent": "#CCF062", "accent_deep": "#A3D422", "accent_soft": "#F2FBD2",
-    "danger": "#BA1A1A", "danger_soft": "#FFDAD6",
-    "warn": "#9A3412", "warn_soft": "#FFF3E6",
+    "canvas": ("#FDFBF7", "#111514"), "card": ("#FFFFFF", "#181D1B"), "subtle": ("#F7F5F0", "#1F2522"),
+    "border": ("#EBE8E1", "#2A322E"), "border_strong": ("#CBD5E1", "#3A4540"),
+    "text": ("#0F172A", "#E7ECE9"), "muted": ("#64748B", "#97A39D"),
+    "brand": "#173B35", "on_accent": "#0F172A",
+    "accent": "#CCF062", "accent_deep": "#A3D422", "accent_soft": ("#F2FBD2", "#2A3515"),
+    "danger": ("#BA1A1A", "#FFB4AB"), "danger_soft": ("#FFDAD6", "#5C1512"),
+    "warn": ("#9A3412", "#FDBA74"), "warn_soft": ("#FFF3E6", "#4A2A10"),
 }
 TONES = ("neutral", "accent", "danger", "warn")
 
@@ -70,18 +73,20 @@ _CSS = (
     ".w-msg-body,.w-quote{font-size:14px;line-height:22px;color:var(--w-text);white-space:pre-wrap}"
     ".w-client-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap}"
     ".w-client-name{font-size:24px;line-height:32px;font-weight:700;color:var(--w-text)}"
-    # Streamlit overrides: dark text on the lime primary button
-    '[data-testid="stBaseButton-primary"]{color:var(--w-text)!important;font-weight:700!important}'
+    # Streamlit overrides: dark text on the lime primary button, in both themes
+    '[data-testid="stBaseButton-primary"]{color:var(--w-on-accent)!important;font-weight:700!important}'
+    '[data-testid="stBaseButton-primary"] p{color:var(--w-on-accent)!important}'
     '[data-testid="stBaseButton-primary"]:hover{background:var(--w-accent-deep)!important;border-color:var(--w-accent-deep)!important}'
     # selected filter pill: Streamlit paints its text lime on a lime tint, unreadable
     'button[data-variant="segmented_control"][aria-checked="true"]{color:var(--w-text)!important;'
     "background:var(--w-accent-soft)!important;border-color:var(--w-accent-deep)!important;font-weight:600}"
     # density: less dead space above and between blocks
-    ".stMainBlockContainer{padding-top:5rem!important;padding-bottom:3rem!important;max-width:1320px!important}"
+    ".stMainBlockContainer{padding-top:6rem!important;padding-bottom:3rem!important;max-width:1320px!important}"
     ".stApp h1{font-size:30px!important;line-height:38px!important;letter-spacing:-.02em!important;padding:0 0 .25rem!important}"
     ".stApp h3{font-size:18px!important;line-height:26px!important;padding:0 0 .25rem!important}"
-    # top bar: bigger logo (fits the 60px header) and bigger nav tabs
-    '[data-testid="stHeaderLogo"]{height:48px!important;max-height:48px!important;width:auto!important}'
+    # top bar: taller header for a bigger logo tile, and bigger nav tabs
+    '[data-testid="stHeader"]{height:76px!important}'
+    '[data-testid="stHeaderLogo"]{height:60px!important;max-height:60px!important;width:auto!important;border-radius:14px}'
     '[data-testid="stTopNavLink"]{height:38px!important;padding:0 14px!important;gap:8px}'
     '[data-testid="stTopNavLink"] p,[data-testid="stTopNavLink"] span{font-size:16px!important;line-height:20px!important;font-weight:600}'
     '[data-testid="stTopNavLink"] [data-testid="stIconMaterial"]{font-size:20px!important}'
@@ -121,8 +126,12 @@ _CSS = (
 )
 
 
+def _value(token):
+    return token if isinstance(token, str) else f"light-dark({token[0]},{token[1]})"
+
+
 def css():
-    root = ";".join(f"--w-{k.replace('_', '-')}:{v}" for k, v in TOKENS.items())
+    root = ";".join(f"--w-{k.replace('_', '-')}:{_value(v)}" for k, v in TOKENS.items())
     return f"<style>{_ICON_FONT}:root{{{root}}}{_CSS}</style>"
 
 

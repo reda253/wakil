@@ -2,17 +2,28 @@
 maxUploadSize = 200
 
 [client]
-toolbarMode = "minimal"
+# "viewer" keeps the viewer menu (theme switch: Light / Dark / System) and hides Deploy.
+toolbarMode = "viewer"
 
 [theme]
-base = "light"
+showWidgetBorder = true
+baseRadius = "1rem"
+buttonRadius = "full"
+font = "'Plus Jakarta Sans':https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap, sans-serif"
+
+# Colors mirror ui/theme.py TOKENS (light, dark).
+[theme.light]
 primaryColor = "#CCF062"
 backgroundColor = "#FDFBF7"
 secondaryBackgroundColor = "#F7F5F0"
 textColor = "#0F172A"
 borderColor = "#EBE8E1"
-showWidgetBorder = true
-baseRadius = "1rem"
-buttonRadius = "full"
 redColor = "#BA1A1A"
-font = "'Plus Jakarta Sans':https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap, sans-serif"
+
+[theme.dark]
+primaryColor = "#CCF062"
+backgroundColor = "#111514"
+secondaryBackgroundColor = "#1F2522"
+textColor = "#E7ECE9"
+borderColor = "#2A322E"
+redColor = "#FFB4AB"

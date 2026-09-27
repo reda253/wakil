@@ -94,7 +94,7 @@ def test_client_header_html():
 def test_theme_is_restrained():
     css = theme.css()
     assert css.startswith("<style>") and css.endswith("</style>")
-    assert "--w-accent:#CCF062" in css and "--w-canvas:#FDFBF7" in css
+    assert "--w-accent:#CCF062" in css and "--w-canvas:light-dark(#FDFBF7," in css
     assert theme.TONES == ("neutral", "accent", "danger", "warn")
     for tone in theme.TONES:
         assert f".w-{tone}{{" in css
@@ -104,9 +104,9 @@ def test_theme_is_restrained():
 
 def test_streamlit_config_matches_design():
     cfg = tomllib.loads((ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8"))
-    t = cfg["theme"]
-    assert t["primaryColor"] == "#CCF062" and t["backgroundColor"] == "#FDFBF7"
-    assert t["textColor"] == "#0F172A" and "Plus Jakarta Sans" in t["font"]
+    t, light = cfg["theme"], cfg["theme"]["light"]
+    assert light["primaryColor"] == "#CCF062" and light["backgroundColor"] == "#FDFBF7"
+    assert light["textColor"] == "#0F172A" and "Plus Jakarta Sans" in t["font"]
     assert cfg["server"]["maxUploadSize"] == 200
 
 
@@ -123,7 +123,7 @@ def test_visual_round_fixes():
     # selected segmented pill must use dark text (lime-on-lime was unreadable)
     assert 'button[data-variant="segmented_control"][aria-checked="true"]' in css
     cfg = tomllib.loads((ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8"))
-    assert cfg["client"]["toolbarMode"] == "minimal"  # hides Streamlit's Deploy menu
+    assert cfg["client"]["toolbarMode"] == "viewer"  # hides Deploy, keeps the theme switch
     src = (ROOT / "ui" / "components.py").read_text(encoding="utf-8")
     assert 'st.popover("Details")' in src  # no second chevron icon
 
@@ -158,7 +158,7 @@ def test_theme_has_one_brand_color_for_the_hero():
     assert "prefers-reduced-motion:no-preference" in css
     motion = css.split("@media (prefers-reduced-motion:no-preference){", 1)[1]
     assert css.count("scale(.97)") == motion.count("scale(.97)") > 0  # all press motion is motion-safe
-    assert ".stMainBlockContainer{padding-top:5rem" in css  # clears the fixed top nav (~56px) + 24px
+    assert ".stMainBlockContainer{padding-top:6rem" in css  # clears the taller fixed header (76px) + 20px
 
 
 def test_hero_tiles_stay_two_per_row_on_phones():
@@ -170,5 +170,41 @@ def test_hero_tiles_stay_two_per_row_on_phones():
 
 def test_bigger_logo_and_top_tabs():
     css = theme.css()
-    assert '[data-testid="stHeaderLogo"]{height:48px' in css
+    assert '[data-testid="stHeader"]{height:76px' in css
+    assert '[data-testid="stHeaderLogo"]{height:60px' in css
     assert '[data-testid="stTopNavLink"]{height:38px' in css and "font-size:16px" in css
+
+
+def test_logo_asset_is_cropped_to_the_mark():
+    from PIL import Image
+    im = Image.open(Path(__file__).resolve().parents[2] / "ui" / "assets" / "logo.png")
+    from PIL import ImageChops
+    rgb = im.convert("RGB")
+    w, h = rgb.size
+    bg = Image.new("RGB", rgb.size, rgb.getpixel((0, 0)))
+    left, top, right, bottom = ImageChops.difference(rgb, bg).convert("L").point(
+        lambda v: 255 if v > 24 else 0).getbbox()
+    # the mark fills the tile instead of floating in a wide margin (it was ~45% before)
+    assert w == h and max(right - left, bottom - top) >= 0.75 * w
+
+
+def test_custom_colors_follow_the_streamlit_theme():
+    css = theme.css()
+    # every themed token resolves against the color-scheme Streamlit sets on the app
+    assert "--w-text:light-dark(#0F172A,#E7ECE9)" in css
+    assert "--w-canvas:light-dark(#FDFBF7,#111514)" in css
+    assert "--w-brand:#173B35" in css  # the one brand color is the same in both themes
+    # text on the lime primary button stays dark in dark mode
+    assert '[data-testid="stBaseButton-primary"]{color:var(--w-on-accent)' in css
+    assert "--w-on-accent:#0F172A" in css
+
+
+def test_config_offers_light_and_dark_themes():
+    import tomllib
+    cfg = tomllib.loads((Path(__file__).resolve().parents[2] / ".streamlit" / "config.toml").read_text("utf-8"))
+    assert cfg["client"]["toolbarMode"] == "viewer"  # keeps the viewer theme switch, hides Deploy
+    light, dark = cfg["theme"]["light"], cfg["theme"]["dark"]
+    assert light["backgroundColor"] == theme.TOKENS["canvas"][0]
+    assert dark["backgroundColor"] == theme.TOKENS["canvas"][1]
+    assert dark["textColor"] == theme.TOKENS["text"][1]
+    assert "base" not in cfg["theme"]  # a fixed base would pin one theme
