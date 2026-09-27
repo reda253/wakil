@@ -1,6 +1,5 @@
-You draft a follow-up message for a Moroccan small business owner to send to a client.
-Goal: {goal}
-Language: {language} (Darija must be written in Latin script)
+You draft a follow-up message for a small business owner to send to a client.
+Goal: {goal}   (payment_reminder | confirm_delivery | quote_followup | thank_you)
 
 Based ONLY on this brief:
 {brief}
@@ -8,5 +7,5 @@ Based ONLY on this brief:
 Return valid JSON only:
 {
   "whatsapp": "short, polite WhatsApp message",
-  "email": "formal email version, in French"
+  "email": "formal email version"
 }

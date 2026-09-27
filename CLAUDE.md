@@ -1,72 +1,66 @@
 # CLAUDE.md — Wakil
 
-Hackathon project (GOMYCODE × NVIDIA "Come Build with AI", **Sun 2026-09-27, Morocco**). One-day build.
-Full plan: [docs/hackathon_build_plan.md](docs/hackathon_build_plan.md). Roles/timeline: [docs/team_work_split.md](docs/team_work_split.md). Read those when a question is about scope, timing, scoring or pitch.
+Hackathon project (GOMYCODE × NVIDIA "Come Build with AI", **Sun 2026-09-27**). One-day build.
+- Dev split, ownership, contracts, tasks: [docs/wakil_dev_split.md](docs/wakil_dev_split.md) ← **source of truth for structure**
+- Product plan, pitch, scoring, timeline: [docs/hackathon_build_plan.md](docs/hackathon_build_plan.md)
 
 ## What it is
-Wakil (وكيل) = AI agent for Moroccan small businesses run on WhatsApp. Input: WhatsApp "Export chat" `.txt`/`.zip` (with `.opus` voice notes in Darija/French/Arabic). Output: tasks, promises, payments, deadlines, questions — **each linked to its source message** — plus a dashboard, a "who owes me money" view, a pre-call brief, and a draft reply (WhatsApp Darija-Latin or French + formal email).
+Wakil (وكيل) = AI agent for small businesses run on WhatsApp. Two input paths:
+1. **Export path**: WhatsApp "Export chat" `.zip`/`.txt` (with `.opus` voice notes) → parse → transcribe → extract.
+2. **Live path**: WhatsApp Cloud API webhook; owner forwards messages/voice notes to the bot.
+Output: tasks, promises, payments, deadlines, questions, **each linked to its source message**; dashboard; "who owes me money"; pre-call brief; draft reply (WhatsApp + formal email).
 
-## Hard rules (don't break these)
-- **App never sends messages or makes calls.** Drafts only; user copies them.
-- **No invented facts.** Extract only explicit content. Ambiguous → `confidence: "low"` (shown orange). Small-talk chat must yield **zero** items.
-- **Every item has a valid `source_message_id`** that exists in the input. Drop items that don't.
-- **Never commit API keys.** `.env` / `.streamlit/secrets.toml` are gitignored.
-- **Feature freeze 15:30. Submit by 17:15.** After freeze: bug fixes, deploy, video only. Prefer cutting scope over adding.
-- Out of scope: real WhatsApp Business API, auto-sending, Gmail/calendar integrations.
-- API path first; NVIDIA Brev only if approved and API path already works (stop at 14:45 if not working).
+## Hard rules
+- **Every file has exactly ONE owner. Only edit files owned by the dev you're helping.** Need a change elsewhere → tell the user to message that owner. Adding new functions in your own file is fine.
+- `core/contracts.py` is **frozen**. Don't change it without the whole team agreeing.
+- Changing a function signature → callers must be told first (see contracts table below).
+- New package → D4 adds it to `requirements.txt` (GPU packages → `brev/requirements-gpu.txt`, D2).
+- Git: work on `main`; `git pull --rebase` before start and before push; **`git add <own files>` by name, never `git add .` / `-A`**; small commits; never resolve conflicts in someone else's file.
+- Never commit `.env`, `*.db`, `uploads/`, `cache/`, audio.
+- The Streamlit app never sends messages. Drafts only; the owner sends. (The WhatsApp bot only replies to the owner's own commands.)
+- No invented facts: extract only what's explicit; unclear → `confidence: "low"`; small-talk chat → zero items; every item cites a real `source_message_id`.
+- **Feature freeze 15:30. Submit by 17:15.** Cut order if behind (cut first → last): Brev LLM → WhatsApp live → brief & draft page → dashboard polish. Export path + extraction quality are never cut.
 
-## Stack
-Python 3.10+ (file `parser.py` shadows the old stdlib `parser` on 3.9), Streamlit multipage, SQLite, ffmpeg.
-- STT: Groq Whisper large-v3 → fallback Gemini audio. Cache transcripts by filename.
-- LLM: Gemini Flash (JSON mode) → fallback Groq-hosted model / NVIDIA Build, all behind `ai.call_llm()`.
-- Model names come from env vars (`.env.example`); verify names in consoles, don't hardcode.
-- Deploy: Streamlit Community Cloud (`packages.txt` → ffmpeg; keys in Secrets).
-
-## Layout and owners
-Each person owns their files to avoid merge conflicts. Only P3 edits `app.py` and `pages/`.
-| File | Owner | Purpose |
+## Ownership
+| Dev | Area | Files |
 |---|---|---|
-| `app.py`, `pages/1_Import.py` `2_Dashboard.py` `3_Client.py` `4_Brief_and_Reply.py` | P3 | UI |
-| `db.py` | P3 | SQLite: clients, messages, items |
-| `parser.py` | P4 | export → messages |
-| `speech.py` | P1 | audio → text |
-| `ai.py`, `prompts/*.txt` | P2 | extraction, brief, reply |
-| `tests/evaluate.py`, `tests/data/<scenario>/` | P4 | accuracy scoring |
+| D1 | AI Engine | `core/speech.py` `core/llm.py` `core/ai.py` `prompts/*` |
+| D2 | Brev + WhatsApp Live | `brev/*` `server/webhook.py` `server/commands.py` `server/whatsapp_api.py` |
+| D3 | Data + Export Path | `core/parser.py` `core/db.py` `core/pipeline.py` `pages/1_Import.py` |
+| D4 | App UI + Deploy | `app.py` `pages/2_Dashboard.py` `pages/3_Client.py` `pages/4_Brief_Reply.py` `ui/components.py` `.streamlit/*` `packages.txt` `requirements.txt` `.env.example` `README.md` |
+| Frozen | Contracts | `core/contracts.py` |
 
-## Contracts (all modules code against these)
-```python
-Message = {"id": int, "timestamp": "2026-09-27T14:32", "sender": "me"|"client",
-           "type": "text"|"voice", "content": str, "transcript": str|None}   # content = text or audio path
-Item = {"type": "task"|"promise"|"payment"|"deadline"|"question", "description": str,
-        "owner": "me"|"client", "amount_mad": float|None, "due_date": "YYYY-MM-DD"|None,
-        "source_message_id": int, "confidence": "high"|"low"}
+## Contracts
+Shapes in `core/contracts.py`: `Message` (`sender`: `"owner"|"client"`, `source`: `"export"|"whatsapp"`) and `Item` (`owner`: `"me"|"client"`, `status`, `confidence`, `source_message_id`). Note `Message.sender` uses `"owner"` but `Item.owner` uses `"me"`.
 
-parser.parse_export(file_path, my_name=None) -> (client_name, list[Message])
-speech.transcribe(audio_path) -> {"text", "language", "provider"}
-ai.extract_items(client_name, messages) -> {"client_summary", "items"}
-ai.make_brief(client_name, items, recent_messages) -> str        # 5 lines max
-ai.draft_reply(brief, goal, language) -> {"whatsapp", "email"}
-```
-Modules start as **stubs returning hard-coded data** (marked `# STUB`) so the UI works end to end from minute one. Replace stubs in place; keep signatures.
+| Function | Owner | Called by |
+|---|---|---|
+| `speech.transcribe(audio_path) -> {"text","provider"}` | D1 | D3 |
+| `llm.call_llm(prompt, json=True) -> str` | D1 | D1 |
+| `ai.extract_items(client_name, messages, existing_items=[]) -> {"summary","items"}` | D1 | D3 |
+| `ai.make_brief(client_name, items, recent_messages) -> str` | D1 | D2, D4 |
+| `ai.draft_reply(brief, goal) -> {"whatsapp","email"}` (goal: `payment_reminder`/`confirm_delivery`/`quote_followup`/`thank_you`) | D1 | D4 |
+| `parser.parse_export(path, owner_name) -> (client_name, list[Message])` | D3 | D3 |
+| `pipeline.process_export(path, owner_name, client_name, client_phone=None) -> client_id` | D3 | D3 |
+| `pipeline.process_live_message(client_name, msg_type, content) -> list[Item]` | D3 | D2 |
+| `db.get_clients() / get_client(id) / get_or_create_client(name, phone=None)` | D3 | D2, D4 |
+| `db.get_items(client_id=None, status="open")`, `db.get_messages(client_id, limit=None)`, `db.get_message(message_id)`, `db.set_item_status(item_id, status)`, `db.get_money_owed() -> [{"client","amount_mad"}]` | D3 | D1, D2, D4 |
 
-DB note: `messages.local_id` = parser's `Message["id"]`; `items.source_message_id` refers to it (per client). Use `db.get_source_message(client_id, local_id)` for "view source".
+Step 0 state: every function is a **stub** (marked `# STUB`) returning fake data so the app runs end to end. Replace stubs in place; keep signatures. Import modules as `from core import db, ai, ...`.
 
-## Implementation notes
-- Parser: Android `27/09/2026, 14:32 - Name: text`, iPhone `[27/09/2026, 14:32:05] Name: text`; lines without a date continue the previous message; voice notes look like `PTT-...opus (file attached)` (wording depends on phone language); mask phone numbers; user picks which sender is "me".
-- LLM input format: numbered lines `[12] 2026-09-27 14:32 client: ...` so the model can cite ids.
-- Validate LLM JSON; on failure retry once with the error, then return empty result + error flag.
-- Relative dates ("ghda", "next Friday") → absolute from message timestamp. Amounts ("1500 dh", "alf w khmsmya", "1.5k") → number.
-- Chunk long chats (~150 messages), merge, dedupe.
-- Prompt files contain literal JSON braces: fill placeholders with `.replace("{client_name}", ...)`, **not** `str.format`.
-- Show a small "fallback used" indicator when a fallback provider answered.
-- UI text in simple French (Darija where natural).
+## Stack & key decisions
+- Python 3.10+, Streamlit multipage (`pages/`), SQLAlchemy on `DATABASE_URL` (Guepard Postgres, 20-min timebox, else `sqlite:///wakil.db`). Hosted DB is what lets the webhook server and deployed app share data.
+- STT chain: Brev faster-whisper (`BREV_WHISPER_URL`) → Groq Whisper large-v3 → Gemini audio. `language="en"`. ffmpeg `.opus` → 16 kHz mono `.wav`. Cache by file hash in `cache/`.
+- LLM chain in `llm.call_llm`: Brev vLLM (`BREV_LLM_URL`, OpenAI client `base_url`, skipped if empty) → Gemini → Groq. Timeouts; log provider.
+- Extraction: numbered lines `[12] 2026-09-27 14:32 client: ...`; validate JSON (fields, types, source id exists); retry once with error; else empty + `error` key; chunk >~150 messages.
+- Prompt files contain literal JSON braces: fill with `.replace("{x}", ...)`, **not** `str.format`.
+- Webhook: `GET /webhook` Meta verify; `POST /webhook` returns 200 immediately, processes in background; errors → friendly reply.
+- Deploy: Streamlit Community Cloud / HF Spaces; `packages.txt` → ffmpeg; secrets set there.
+- Brev: WSL Ubuntu-22.04 on the lead's laptop has `brev` CLI installed (`brev login`, `brev ls`). Only D2 starts/stops GPU instances; stop when idle.
 
 ## Commands
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
-python -m tests.evaluate      # prints correct / missed / invented per test chat
+uvicorn server.webhook:app --port 8080
 ```
-
-## Testing
-5 scenarios in `tests/data/` (carpenter, event planner, supplier w/ unpaid invoice, voice-only heavy Darija, small talk). Each has `expected.json` written by hand. Goal metric for pitch: "X/Y items correct, 0 invented, N s per chat". Use synthetic/consented data only.

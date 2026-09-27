@@ -1,5 +1,12 @@
 streamlit
+sqlalchemy
+psycopg2-binary
 python-dotenv
+requests
 groq
 google-genai
 openai
+fastapi
+uvicorn
+python-multipart
+pydantic

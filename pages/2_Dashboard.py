@@ -1,25 +1,17 @@
-from datetime import date
-
+"""Dashboard.  Owner: D4."""
 import streamlit as st
 
-import db
+from core import db
+from ui.components import item_card, money_badge
 
-st.title(" Tableau de bord")
+st.title("Dashboard")
 
-items = db.get_items()
-owed = [i for i in items if i["type"] == "payment" and i["owner"] == "client" and i["amount_mad"]]
+# STUB: sort by due date, overdue in red
+owed = db.get_money_owed()
+money_badge(sum(o["amount_mad"] for o in owed))
+for o in owed:
+    st.write(f"{o['client']}: {o['amount_mad']:,.0f} MAD")
 
-st.subheader(" Qui me doit de l'argent")
-if owed:
-    st.metric("Total dû", f"{sum(i['amount_mad'] for i in owed):,.0f} MAD")
-    for i in owed:
-        st.write(f"**{i['client_name']}** · {i['amount_mad']:,.0f} MAD · {i['description']}")
-else:
-    st.write("Personne ne te doit d'argent.")
-
-st.subheader("Tâches et rappels")
-today = date.today().isoformat()
-for i in items:
-    overdue = i["due_date"] and i["due_date"] < today
-    tag = "" if overdue else ("" if i["confidence"] == "low" else "")
-    st.write(f"{tag} `{i['due_date'] or '—'}` **{i['client_name']}** · {i['type']} · {i['description']}")
+st.subheader("Open items")
+for item in db.get_items():
+    item_card(item)

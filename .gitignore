@@ -2,21 +2,19 @@
 .env
 .streamlit/secrets.toml
 
+# Runtime data
+*.db
+uploads/
+cache/
+*.opus
+*.wav
+*.mp3
+
 # Python
 __pycache__/
 *.pyc
 .venv/
 venv/
-
-# Runtime data (local DB, uploads, audio, transcript cache)
-data/
-*.db
-*.sqlite
-transcripts_cache.json
-*.opus
-*.mp3
-*.wav
-!tests/data/**/*.opus
 
 # OS / editor
 .DS_Store
