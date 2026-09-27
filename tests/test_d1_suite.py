@@ -90,6 +90,35 @@ class TestD1Engine(unittest.TestCase):
         self.assertEqual(item2["due_date"], "2026-10-15")
         self.assertEqual(item2["source_message_id"], 2)
 
+    def test_drop_items_with_invalid_source_message_id(self):
+        """Hallucinated message IDs (e.g. source 47) must be dropped, not snapped to a random message."""
+        raw_items = [
+            {
+                "type": "payment",
+                "description": "Valid payment item",
+                "owner": "client",
+                "amount_mad": 500.0,
+                "source_message_id": 2,
+            },
+            {
+                "type": "promise",
+                "description": "Hallucinated item citing message 47",
+                "owner": "me",
+                "source_message_id": 47,
+            },
+            {
+                "type": "task",
+                "description": "Item with non-numeric source_message_id",
+                "owner": "me",
+                "source_message_id": "invalid_id",
+            },
+        ]
+        # Only message IDs {1, 2, 3} exist in the chat
+        sanitized = ai._validate_and_sanitize_items(raw_items, valid_message_ids={1, 2, 3}, client_id=1)
+        self.assertEqual(len(sanitized), 1)
+        self.assertEqual(sanitized[0]["source_message_id"], 2)
+        self.assertEqual(sanitized[0]["description"], "Valid payment item")
+
     @patch("core.llm.call_llm")
     def test_extract_items_success(self, mock_llm):
         """Test extraction flow with valid LLM output."""

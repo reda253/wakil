@@ -84,17 +84,20 @@ def _validate_and_sanitize_items(
             if date_match:
                 due_date = date_match.group(0)
 
-        # Source message ID validation
+        # Source message ID validation: every item must cite a real message
         source_id = raw.get("source_message_id")
         try:
             source_id = int(source_id)
         except (TypeError, ValueError):
-            source_id = 0
+            logger.warning(f"Dropping item with non-integer source_message_id: {source_id}")
+            continue
 
-        # If source_id is not in valid_message_ids, choose closest or default
+        # If valid_message_ids is provided, drop any item citing a non-existent message ID
         if valid_message_ids and source_id not in valid_message_ids:
-            # Fall back to minimum or first available valid message ID
-            source_id = min(valid_message_ids, key=lambda x: abs(x - source_id))
+            logger.warning(
+                f"Dropping item: source_message_id {source_id} is not in valid_message_ids {valid_message_ids}"
+            )
+            continue
 
         confidence_raw = str(raw.get("confidence", "high")).lower().strip()
         confidence = "low" if confidence_raw == "low" else "high"
