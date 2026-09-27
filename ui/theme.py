@@ -72,6 +72,9 @@ _CSS = (
     # Streamlit overrides: dark text on the lime primary button
     '[data-testid="stBaseButton-primary"]{color:var(--w-text)!important;font-weight:700!important}'
     '[data-testid="stBaseButton-primary"]:hover{background:var(--w-accent-deep)!important;border-color:var(--w-accent-deep)!important}'
+    # selected filter pill: Streamlit paints its text lime on a lime tint, unreadable
+    'button[data-variant="segmented_control"][aria-checked="true"]{color:var(--w-text)!important;'
+    "background:var(--w-accent-soft)!important;border-color:var(--w-accent-deep)!important;font-weight:600}"
 )
 
 

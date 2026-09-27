@@ -46,3 +46,44 @@ def test_app_shell_runs_dashboard_by_default(fake_backend):
     at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=20).run()
     assert not at.exception
     assert at.title[0].value == "Dashboard"
+
+
+DASH = str(ROOT / "pages" / "2_Dashboard.py")
+
+
+def test_dashboard_renders_without_llm_calls(fake_backend):
+    at = AppTest.from_file(DASH, default_timeout=20).run()
+    assert not at.exception
+    assert at.title[0].value == "Dashboard"
+    assert fake_backend["brief_calls"] == []
+
+
+def test_dashboard_breakdowns_live_in_details(fake_backend):
+    at = AppTest.from_file(DASH, default_timeout=20).run()
+    md = [m.value for m in at.markdown]
+    assert "**1** made by you · **0** made by clients" in md
+    assert "**1** urgent · **1** high · **1** normal · **1** low" in md
+    assert not any("webhook" in m.lower() for m in md)
+
+
+def test_dashboard_done_checkbox(fake_backend):
+    at = AppTest.from_file(DASH, default_timeout=20).run()
+    at.checkbox(key="dash_item_done_2").check().run()
+    assert fake_backend["status_calls"] == [(2, "done")]
+
+
+def test_dashboard_draft_reminder_prefills_brief(fake_backend):
+    at = AppTest.from_file(DASH, default_timeout=20).run()
+    at.button(key="owed_0_draft").click().run()
+    assert fake_backend["brief_calls"] == ["Ahmed Benali"]
+    assert fake_backend["draft_calls"] == ["payment_reminder"]
+    assert "WA draft for payment_reminder" in [c.value for c in at.code]
+
+
+def test_dashboard_empty_backend(fake_backend, monkeypatch):
+    from core import db
+    monkeypatch.setattr(db, "get_clients", lambda: [])
+    monkeypatch.setattr(db, "get_items", lambda client_id=None, status="open": [])
+    monkeypatch.setattr(db, "get_money_owed", lambda: [])
+    at = AppTest.from_file(DASH, default_timeout=20).run()
+    assert not at.exception

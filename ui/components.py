@@ -70,7 +70,7 @@ def item_card(item, client_name=None, today=None, key_prefix="item", urgency=Non
 def metric_card(icon, label, value, unit, details):
     with st.container(border=True):
         st.html(h.metric_html(icon, label, value, unit))
-        with st.popover("Details", icon=":material/expand_more:"):
+        with st.popover("Details"):
             details()
 
 

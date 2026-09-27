@@ -116,3 +116,13 @@ def test_no_emoji_in_ui_sources():
     for f in files:
         if f.exists():
             assert not EMOJI.search(f.read_text(encoding="utf-8")), f"emoji found in {f.name}"
+
+
+def test_visual_round_fixes():
+    css = theme.css()
+    # selected segmented pill must use dark text (lime-on-lime was unreadable)
+    assert 'button[data-variant="segmented_control"][aria-checked="true"]' in css
+    cfg = tomllib.loads((ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8"))
+    assert cfg["client"]["toolbarMode"] == "minimal"  # hides Streamlit's Deploy menu
+    src = (ROOT / "ui" / "components.py").read_text(encoding="utf-8")
+    assert 'st.popover("Details")' in src  # no second chevron icon
