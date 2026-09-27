@@ -20,6 +20,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+WHISPER_TOKEN = os.getenv("WHISPER_TOKEN", "")
+
+
+@app.middleware("http")
+async def require_token(request: Request, call_next):
+    if WHISPER_TOKEN and request.url.path != "/health" \
+            and request.headers.get("x-wakil-key") != WHISPER_TOKEN:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return await call_next(request)
+
 logger.info("Initializing faster-whisper large-v3 on CUDA with float16...")
 # large-v3 with float16 requires ~3.1 GB VRAM, fitting easily within 16 GB VRAM on T4
 model = WhisperModel("large-v3", device="cuda", compute_type="float16")

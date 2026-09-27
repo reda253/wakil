@@ -94,7 +94,8 @@ def _transcribe_brev(audio_path: str, timeout: float = 30.0) -> Dict[str, str]:
     with open(audio_path, "rb") as f:
         files = {"file": (os.path.basename(audio_path), f)}
         data = {"language": "en"}
-        resp = requests.post(endpoint, files=files, data=data, timeout=timeout)
+        headers = {"X-Wakil-Key": os.getenv("WHISPER_TOKEN", "")}
+        resp = requests.post(endpoint, files=files, data=data, headers=headers, timeout=timeout)
         resp.raise_for_status()
         data = resp.json()
         text = data.get("text", "")
