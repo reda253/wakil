@@ -82,6 +82,39 @@ def test_items_money_owed_and_status(db):
     assert db.get_items() == []
 
 
+def test_a_promised_payment_counts_as_money_owed(db):
+    """A promise to pay is the commonest way money is owed, so it must count.
+
+    Real extraction turns "ghadi nsiftlik l'avance ghedda" into type='promise' with an
+    amount, not type='payment'.  Counting payments alone reported 0 MAD owed for the
+    exact conversation this product exists to catch.
+    """
+    cid = db.get_or_create_client("Ahmed")
+    db.save_messages(cid, [_msg(1, "ok, ghadi nsiftlik l'avance ghedda")])
+    db.save_items(cid, [{
+        "type": "promise", "description": "Send the 50% advance tomorrow",
+        "owner": "client", "amount_mad": 7500, "due_date": "2026-09-28",
+        "source_message_id": 1, "confidence": "high"}])
+    assert db.get_money_owed() == [{"client": "Ahmed", "amount_mad": 7500.0}]
+
+
+def test_money_owed_ignores_my_own_promises_and_unpriced_items(db):
+    cid = db.get_or_create_client("Ahmed")
+    db.save_messages(cid, [_msg(1, "..."), _msg(2, "..."), _msg(3, "...")])
+    db.save_items(cid, [
+        {"type": "promise", "description": "I will deliver Thursday", "owner": "me",
+         "amount_mad": 15000, "due_date": "2026-10-12", "source_message_id": 1,
+         "confidence": "high"},
+        {"type": "task", "description": "Send the invoice", "owner": "me",
+         "amount_mad": None, "due_date": None, "source_message_id": 2,
+         "confidence": "high"},
+        {"type": "question", "description": "How many drawers?", "owner": "client",
+         "amount_mad": None, "due_date": None, "source_message_id": 3,
+         "confidence": "high"},
+    ])
+    assert db.get_money_owed() == []
+
+
 def test_get_message_scoped_by_client(db):
     a = db.get_or_create_client("A")
     b = db.get_or_create_client("B")
@@ -135,6 +168,12 @@ def test_pool_recovers_from_closed_connection(monkeypatch):
 # exists to prevent, just wearing a different hat.
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _no_allow_drop(monkeypatch):
+    """Nobody's real .env may make these tests destructive by accident."""
+    monkeypatch.delenv("WAKIL_ALLOW_DROP", raising=False)
+
+
 def test_search_path_is_read_out_of_the_url(monkeypatch):
     from core import db as module
     monkeypatch.delenv("WAKIL_DB", raising=False)
@@ -167,6 +206,44 @@ def test_bootstrapping_an_empty_schema_is_never_refused():
     from core import db
     assert db._drop_refusal("public", had_tables=False) is None
     assert db._drop_refusal("", had_tables=False) is None
+
+
+@pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "on", " 1 "])
+def test_the_allow_drop_opt_in_permits_a_populated_foreign_schema(monkeypatch, value):
+    from core import db
+    monkeypatch.setenv("WAKIL_ALLOW_DROP", value)
+    assert db._drop_refusal("public", had_tables=True) is None
+
+
+@pytest.mark.parametrize("value", ["", "0", "false", "no", "off", "maybe"])
+def test_allow_drop_reads_only_an_explicit_yes(monkeypatch, value):
+    """Anything that is not clearly a yes must leave the guard shut."""
+    from core import db
+    monkeypatch.setenv("WAKIL_ALLOW_DROP", value)
+    assert db._drop_refusal("public", had_tables=True) is not None
+
+
+def test_allow_drop_is_off_unless_it_was_actually_set():
+    from core import db
+    assert db._allow_drop() is False
+    assert db._drop_refusal("public", had_tables=True) is not None
+
+
+def test_rebuild_really_drops_when_the_opt_in_is_set(monkeypatch):
+    """The opt-in wired into _rebuild_schema, not only the helper beside it."""
+    import sqlite3
+    from core import db as module
+    module = importlib.reload(module)
+    monkeypatch.setenv("WAKIL_ALLOW_DROP", "1")
+    monkeypatch.setattr(module, "_PG", True)
+    monkeypatch.setattr(module, "_pg_search_path", lambda: "public")
+    monkeypatch.setattr(module, "_columns", lambda conn, table: {"id", "name"})
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE clients (id INTEGER PRIMARY KEY, name TEXT)")
+    module._rebuild_schema(conn)
+    assert conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'").fetchall() == []
+    conn.close()
 
 
 def test_rebuild_actually_refuses_and_leaves_the_tables_alone(monkeypatch):
@@ -250,8 +327,17 @@ def test_saving_without_a_problems_list_fails_loudly(db):
                                 "type": "text", "content": "orphan"}])
 
 
-def test_describe_names_the_sqlite_path(db):
-    assert db.describe().startswith("sqlite:")
+def test_describe_reports_the_active_backend_without_leaking_the_password(db, request):
+    described = db.describe()
+    if request.node.callspec.params["db"] == "sqlite":
+        assert described == f"sqlite:{db.DB_PATH}"
+    else:
+        assert described.startswith(("postgres://", "postgresql://"))
+        assert "***" in described
+        # the real password must never reach a log line
+        _, _, secret = os.environ["TEST_DATABASE_URL"].split("://", 1)[1].partition("@")[0].partition(":")
+        assert secret, "TEST_DATABASE_URL should carry a password to test against"
+        assert secret not in described
 
 
 def test_init_db_is_idempotent_on_both_backends(db):
@@ -260,3 +346,31 @@ def test_init_db_is_idempotent_on_both_backends(db):
     db.init_db()                     # rebuilds, so the row goes but the schema stays
     assert db.get_clients() == []
     assert db.backend() in ("sqlite", "postgres")
+
+
+def test_init_db_on_a_fresh_postgres_schema_does_not_trip_its_own_guard(db):
+    """init_db() used to create the schema twice and fail on the second pass.
+
+    _conn() ensures the schema, then init_db() asked for a rebuild, and that rebuild
+    saw the tables _conn() had just made and refused - so a *first* run against an
+    empty database failed while a re-run worked.  SQLite cannot catch this: it has no
+    drop guard, so its double create is invisible.
+
+    The fixture has already created the schema, so drop the tables to get back to the
+    genuinely-empty state that used to fail.
+    """
+    if db.backend() != "postgres":
+        pytest.skip("needs TEST_DATABASE_URL")
+    conn = db.connect()             # empty again, as a brand new database would be
+    try:
+        conn.executescript("DROP TABLE IF EXISTS items;DROP TABLE IF EXISTS messages;"
+                           "DROP TABLE IF EXISTS clients;")
+        conn.commit()
+    finally:
+        conn.close()
+    db.close_pool()
+
+    db.init_db()                     # the thing that used to raise
+    cid = db.get_or_create_client("Karim")
+    assert db.save_messages(cid, [_msg(1, "hello")]) == (1, 0)
+    assert db.get_messages(cid)

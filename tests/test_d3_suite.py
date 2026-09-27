@@ -104,6 +104,16 @@ class D3TestCase(unittest.TestCase):
         db.DB_PATH = os.path.join(self.tmp, "test.db")
         pipeline.UPLOAD_ROOT = os.path.join(self.tmp, "uploads")
 
+        # Pin the backend as well as the path.  core.db decides Postgres vs SQLite once,
+        # at import, from DATABASE_URL; redirecting DB_PATH alone does nothing if that
+        # pointed at the shared demo database.  Someone debugging Guepard with
+        # DATABASE_URL exported in their shell would otherwise have this suite write
+        # fake clients, fake messages and fake "money owed" into the live demo data.
+        self._real_pg = db._PG
+        db._PG = False
+        self._real_pg_schema_ok = db._pg_schema_ok
+        db._pg_schema_ok = False
+
         # D1 is a real LLM; fake it so this suite is fast, free and repeatable.
         for target, name, replacement in ((speech, "transcribe", fake_transcribe),
                                           (ai, "extract_items", fake_extract)):
@@ -129,6 +139,8 @@ class D3TestCase(unittest.TestCase):
     def tearDown(self):
         db.DB_PATH = self._real_db_path
         pipeline.UPLOAD_ROOT = self._real_upload_root
+        db._PG = self._real_pg
+        db._pg_schema_ok = self._real_pg_schema_ok
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def _write(self, name, text):
@@ -143,6 +155,38 @@ class D3TestCase(unittest.TestCase):
             for name_, body in files.items():
                 zf.writestr(name_, body)
         return path
+
+
+class TestSuiteIsolation(D3TestCase):
+    """This suite must never be able to write to a real database.
+
+    Everything here runs against a temp SQLite file in setUp.  The check that matters
+    is the second one: with a cloud DATABASE_URL exported in the shell, these tests
+    still go to the temp file, because setUp pins the backend and not just the path.
+    """
+
+    def test_writes_go_to_the_temp_sqlite_file(self):
+        self.assertFalse(db._PG)
+        self.assertTrue(db.DB_PATH.startswith(self.tmp), db.DB_PATH)
+        db.init_db()
+        self.assertTrue(os.path.isfile(db.DB_PATH))
+        with sqlite3.connect(db.DB_PATH) as conn:
+            self.assertTrue(conn.execute(
+                "SELECT name FROM sqlite_master WHERE name='items'").fetchone())
+
+    def test_backend_stays_sqlite_even_with_a_postgres_url_exported(self):
+        """core.db reads DATABASE_URL at import; setUp has to overrule it."""
+        with mock.patch.dict(os.environ,
+                             {"DATABASE_URL": "postgresql://u:p@db.example:5432/wakil",
+                              "WAKIL_ALLOW_DROP": "1"},
+                             clear=False):
+            self.assertEqual(db.backend(), "sqlite")
+            cid = db.get_or_create_client("Isolation Check")
+            self.assertTrue(cid)
+        # and the temp file is what got the row
+        with sqlite3.connect(db.DB_PATH) as conn:
+            names = [r[0] for r in conn.execute("SELECT name FROM clients")]
+        self.assertIn("Isolation Check", names)
 
 
 class TestParser(D3TestCase):
