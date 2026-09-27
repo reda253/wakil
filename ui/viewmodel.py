@@ -126,20 +126,11 @@ def filter_items(items, bucket, today):
     return sort_by_due([i for i in items if _bucket(i, today) == bucket])
 
 
-def _owed(item):
-    """Money the client owes the owner: same rule as core.db.get_money_owed.
-
-    An open client payment or promise with a real amount ("I'll send the 7,500
-    advance tomorrow" is a promise, and the most common way money is owed).
-    """
-    return (item.get("type") in ("payment", "promise") and item.get("owner") == "client"
-            and item.get("status", "open") == "open" and item.get("amount_mad") not in (None, ""))
-
-
 def client_owes(items, client_id):
-    """Open money the client still owes the owner."""
+    """Open payments the client still owes the owner."""
     return sum(_num(i.get("amount_mad")) for i in items
-               if i.get("client_id") == client_id and _owed(i))
+               if i.get("client_id") == client_id and i.get("type") == "payment"
+               and i.get("owner") == "client" and i.get("status", "open") == "open")
 
 
 def orders(items, clients, today):
@@ -175,7 +166,8 @@ def dashboard_metrics(items, owed, clients, today):
         "owed_total": sum(_num(o.get("amount_mad")) for o in owed),
         "owed_clients": sum(1 for o in owed if _num(o.get("amount_mad")) > 0),
         "owed_overdue": sum(_num(i.get("amount_mad")) for i in items
-                            if _owed(i) and classify_due(i.get("due_date"), today) == "overdue"),
+                            if i.get("type") == "payment" and i.get("owner") == "client"
+                            and classify_due(i.get("due_date"), today) == "overdue"),
         "open": counts["all"],
         "overdue": counts["overdue"],
         "today": counts["today"],
@@ -199,7 +191,7 @@ def owed_rows(owed, items, clients, today):
         name = o.get("client") or "Unknown client"
         cid = ids.get(name)
         pays = sort_by_due([i for i in items if cid is not None and i.get("client_id") == cid
-                            and _owed(i)])
+                            and i.get("type") == "payment" and i.get("owner") == "client"])
         first = pays[0] if pays else None
         due = first.get("due_date") if first else None
         rows.append({

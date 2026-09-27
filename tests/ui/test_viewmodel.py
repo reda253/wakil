@@ -120,23 +120,6 @@ def test_owed_rows():
     assert "tone" not in r
 
 
-def test_owed_money_includes_priced_client_promises():
-    # core.db.get_money_owed counts open client promises with an amount as money owed
-    # ("I'll send the 7,500 advance tomorrow"); the rows must show that item's due date
-    # and source instead of "No due date".
-    promise = {"id": 9, "client_id": 1, "type": "promise", "owner": "client", "status": "open",
-               "description": "Send the 50% advance", "amount_mad": 7500, "due_date": "2026-09-28",
-               "source_message_id": 3, "confidence": "high"}
-    rows = vm.owed_rows([{"client": "Ahmed Benali", "amount_mad": 7500}], [promise], CLIENTS, T)
-    assert rows[0]["item"]["id"] == 9 and rows[0]["due_label"] == "Due tomorrow"
-    assert vm.client_owes([promise], 1) == 7500.0
-    late = dict(promise, due_date="2026-09-20")
-    assert vm.dashboard_metrics([late], [{"client": "Ahmed Benali", "amount_mad": 7500}],
-                                CLIENTS, T)["owed_overdue"] == 7500.0
-    unpriced = dict(promise, id=10, amount_mad=None)
-    assert vm.owed_rows([{"client": "Ahmed Benali", "amount_mad": 1}], [unpriced], CLIENTS, T)[0]["item"] is None
-
-
 def test_owed_rows_unknown_client_and_zero_amount():
     owed = [{"client": "Ghost", "amount_mad": 100}, {"client": "Sara", "amount_mad": 0}]
     rows = vm.owed_rows(owed, open_items(), CLIENTS, T)
