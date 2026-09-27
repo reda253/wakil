@@ -1,2 +1,15 @@
 [server]
 maxUploadSize = 200
+
+[theme]
+base = "light"
+primaryColor = "#CCF062"
+backgroundColor = "#FDFBF7"
+secondaryBackgroundColor = "#F7F5F0"
+textColor = "#0F172A"
+borderColor = "#EBE8E1"
+showWidgetBorder = true
+baseRadius = "1rem"
+buttonRadius = "full"
+redColor = "#BA1A1A"
+font = "'Plus Jakarta Sans':https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap, sans-serif"
