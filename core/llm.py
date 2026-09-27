@@ -66,7 +66,7 @@ def _call_gemini(prompt: str, json_mode: bool, timeout: float = 25.0) -> str:
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(api_key=api_key, http_options={"timeout": 10.0})
     config = types.GenerateContentConfig(
         temperature=0.1,
     )
@@ -74,7 +74,7 @@ def _call_gemini(prompt: str, json_mode: bool, timeout: float = 25.0) -> str:
         config.response_mime_type = "application/json"
 
     # Default to fast flash model
-    model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
     response = client.models.generate_content(
         model=model_name,
         contents=prompt,
@@ -92,7 +92,7 @@ def _call_groq(prompt: str, json_mode: bool, timeout: float = 20.0) -> str:
     from groq import Groq
 
     client = Groq(api_key=api_key, timeout=timeout)
-    model_name = os.getenv("GROQ_LLM_MODEL", "llama-3.3-70b-versatile")
+    model_name = os.getenv("GROQ_LLM_MODEL", "openai/gpt-oss-120b")
     kwargs = {
         "model": model_name,
         "messages": [{"role": "user", "content": prompt}],
