@@ -6,9 +6,21 @@ Timeout on each; log which provider answered.
 import os
 import re
 import json
+import socket
 import logging
 from typing import Optional
 from dotenv import load_dotenv
+
+# Ensure reliable IPv4 network resolution on WSL
+try:
+    _orig_getaddrinfo = socket.getaddrinfo
+    def _ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        if family == 0:
+            family = socket.AF_INET
+        return _orig_getaddrinfo(host, port, family, type, proto, flags)
+    socket.getaddrinfo = _ipv4_getaddrinfo
+except Exception:
+    pass
 
 load_dotenv()
 
@@ -58,7 +70,7 @@ def _call_brev_vllm(prompt: str, json_mode: bool, timeout: float = 20.0) -> str:
     return _clean_json_markdown(content)
 
 
-def _call_gemini(prompt: str, json_mode: bool, timeout: float = 25.0) -> str:
+def _call_gemini(prompt: str, json_mode: bool, timeout: float = 15.0) -> str:
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise ValueError("GEMINI_API_KEY not set")
@@ -66,15 +78,15 @@ def _call_gemini(prompt: str, json_mode: bool, timeout: float = 25.0) -> str:
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=api_key, http_options={"timeout": 10.0})
+    client = genai.Client(api_key=api_key, http_options={"timeout": timeout})
     config = types.GenerateContentConfig(
         temperature=0.1,
     )
     if json_mode:
         config.response_mime_type = "application/json"
 
-    # Default to fast flash model
-    model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+    # Default to modern fast flash model
+    model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
     response = client.models.generate_content(
         model=model_name,
         contents=prompt,
