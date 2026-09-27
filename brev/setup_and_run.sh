@@ -8,7 +8,10 @@ pip install faster-whisper fastapi uvicorn python-multipart
 echo "=== [Wakil GPU] Stopping any previous server ==="
 pkill -f "whisper_server" || true
 
-export WHISPER_TOKEN="${WHISPER_TOKEN:-db7e654c0d28cfa488404ab7a88730a0}"
+if [ -z "$WHISPER_TOKEN" ]; then
+    echo "ERROR: WHISPER_TOKEN must be set before running setup_and_run.sh"
+    exit 1
+fi
 echo "=== [Wakil GPU] Launching whisper_server.py on port 8000 ==="
 nohup python3 -u ~/whisper_server.py > ~/whisper.log 2>&1 &
 
