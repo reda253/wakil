@@ -128,3 +128,28 @@ def test_orders_page_empty(fake_backend, monkeypatch):
     monkeypatch.setattr(db, "get_items", lambda client_id=None, status="open": [])
     at = AppTest.from_file(ORDERS, default_timeout=20).run()
     assert not at.exception and _order_keys(at) == []
+
+
+CLIENT = str(ROOT / "pages" / "3_Client.py")
+
+
+def test_client_page_renders_and_toggles(fake_backend):
+    at = AppTest.from_file(CLIENT, default_timeout=20).run()
+    assert not at.exception
+    assert at.title[0].value == "Clients & history"
+    at.checkbox(key="client_item_done_1").check().run()
+    assert fake_backend["status_calls"] == [(1, "done")]
+
+
+def test_client_page_preselects_imported_client(fake_backend):
+    at = AppTest.from_file(CLIENT, default_timeout=20)
+    at.session_state["client_id"] = 2
+    at.run()
+    assert at.selectbox(key="client_page_client").value == 2
+
+
+def test_client_page_empty(fake_backend, monkeypatch):
+    from core import db
+    monkeypatch.setattr(db, "get_clients", lambda: [])
+    at = AppTest.from_file(CLIENT, default_timeout=20).run()
+    assert not at.exception
