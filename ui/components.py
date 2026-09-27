@@ -67,8 +67,9 @@ def item_card(item, client_name=None, today=None, key_prefix="item", urgency=Non
 
 # ---------- metric cards ----------
 
-def metric_card(icon, label, value, unit, details):
-    with st.container(border=True):
+def metric_card(icon, label, value, unit, details, key):
+    """Borderless keyed tile; the dashboard hero CSS styles `st-key-metric_*` containers."""
+    with st.container(key=key):
         st.html(h.metric_html(icon, label, value, unit))
         with st.popover("Details"):
             details()
@@ -106,13 +107,13 @@ def metric_row(items, owed, clients, today):
 
     cols = st.columns(4)
     with cols[0]:
-        metric_card("payments", "Owed to you", f"{m['owed_total']:,.0f}", "MAD", owed_details)
+        metric_card("payments", "Owed to you", f"{m['owed_total']:,.0f}", "MAD", owed_details, "metric_0")
     with cols[1]:
-        metric_card("inventory_2", "Open orders", m["orders"], "", orders_details)
+        metric_card("inventory_2", "Open orders", m["orders"], "", orders_details, "metric_1")
     with cols[2]:
-        metric_card("handshake", "Promises tracked", m["promises"], "", promises_details)
+        metric_card("handshake", "Promises tracked", m["promises"], "", promises_details, "metric_2")
     with cols[3]:
-        metric_card("fact_check", "Need a check", m["to_verify"], "", verify_details)
+        metric_card("fact_check", "Need a check", m["to_verify"], "", verify_details, "metric_3")
 
 
 # ---------- money owed ----------
@@ -156,6 +157,19 @@ def priority_board(items, client_names, today, key):
         return
     for item in shown:
         item_card(item, client_names.get(item.get("client_id")), today, key_prefix=f"{key}_item")
+
+
+# ---------- next to deliver ----------
+
+def next_to_deliver(order_rows, limit=3):
+    """The few orders the owner should deliver next, most urgent first."""
+    if not order_rows:
+        empty_state("Nothing to deliver. You are all caught up.")
+        return
+    st.html("".join(h.order_row_html(r) for r in order_rows[:limit]))
+    more = len(order_rows) - limit
+    if more > 0:
+        st.caption(f"{more} more on the Orders page.")
 
 
 # ---------- brief & reply ----------

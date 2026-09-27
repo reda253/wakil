@@ -193,3 +193,26 @@ def test_brief_panel_failed_draft_not_retried_on_rerun(fake_backend, monkeypatch
     assert at.error and "Could not write the draft" in at.error[0].value
     at.run()  # an unrelated rerun must not call the LLM again
     assert calls == ["payment_reminder"] and not at.exception
+
+
+def _next_app():
+    from core import db
+    from ui.components import next_to_deliver
+    from ui import viewmodel as vm
+    next_to_deliver(vm.orders(db.get_items(), db.get_clients(), vm.today()))
+
+
+def _next_empty_app():
+    from ui.components import next_to_deliver
+    next_to_deliver([])
+
+
+def test_next_to_deliver_shows_three_and_count(fake_backend):
+    at = AppTest.from_function(_next_app, default_timeout=15).run()
+    assert not at.exception
+    assert "1 more on the Orders page." in [c.value for c in at.caption]
+
+
+def test_next_to_deliver_empty(fake_backend):
+    at = AppTest.from_function(_next_empty_app, default_timeout=15).run()
+    assert not at.exception and not at.caption
