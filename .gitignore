@@ -16,8 +16,15 @@ __pycache__/
 .venv/
 venv/
 
+# Local planning and design references (not part of the app)
+docs/superpowers/
+docs/design/
+PRODUCT.md
+.impeccable/
+
 # OS / editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+.superpowers/
