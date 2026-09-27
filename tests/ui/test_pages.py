@@ -45,7 +45,7 @@ def test_brief_panel_generates_brief_then_draft(fake_backend):
 def test_app_shell_runs_dashboard_by_default(fake_backend):
     at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=20).run()
     assert not at.exception
-    assert at.title[0].value == "Dashboard"
+    assert "dash_item_done_1" in [c.key for c in at.checkbox]  # the dashboard is the default page
 
 
 DASH = str(ROOT / "pages" / "2_Dashboard.py")
@@ -54,7 +54,7 @@ DASH = str(ROOT / "pages" / "2_Dashboard.py")
 def test_dashboard_renders_without_llm_calls(fake_backend):
     at = AppTest.from_file(DASH, default_timeout=20).run()
     assert not at.exception
-    assert at.title[0].value == "Dashboard"
+    assert not at.title  # the hero headline replaces the page title
     assert fake_backend["brief_calls"] == []
 
 
@@ -216,3 +216,8 @@ def test_next_to_deliver_shows_three_and_count(fake_backend):
 def test_next_to_deliver_empty(fake_backend):
     at = AppTest.from_function(_next_empty_app, default_timeout=15).run()
     assert not at.exception and not at.caption
+
+
+def test_dashboard_shows_next_to_deliver(fake_backend):
+    at = AppTest.from_file(DASH, default_timeout=20).run()
+    assert "1 more on the Orders page." in [c.value for c in at.caption]

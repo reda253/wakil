@@ -77,7 +77,7 @@ _CSS = (
     'button[data-variant="segmented_control"][aria-checked="true"]{color:var(--w-text)!important;'
     "background:var(--w-accent-soft)!important;border-color:var(--w-accent-deep)!important;font-weight:600}"
     # density: less dead space above and between blocks
-    ".stMainBlockContainer{padding-top:1.5rem!important;padding-bottom:3rem!important;max-width:1320px!important}"
+    ".stMainBlockContainer{padding-top:5rem!important;padding-bottom:3rem!important;max-width:1320px!important}"
     ".stApp h1{font-size:30px!important;line-height:38px!important;letter-spacing:-.02em!important;padding:0 0 .25rem!important}"
     ".stApp h3{font-size:18px!important;line-height:26px!important;padding:0 0 .25rem!important}"
     # the one brand color: the dashboard 'Today' hero band
@@ -91,6 +91,15 @@ _CSS = (
     ".st-key-hero .w-ico{background:rgba(204,240,98,.16);color:var(--w-accent)}"
     '.st-key-hero [data-testid="stPopoverButton"]{background:transparent!important;color:rgba(255,255,255,.88)!important;'
     "border-color:rgba(255,255,255,.22)!important}"
+    # phones: keep the hero tiles 2 per row instead of 4 full-width stacked cards
+    "@media (max-width:640px){"
+    '.st-key-hero [data-testid="stHorizontalBlock"]{flex-wrap:wrap!important;gap:.6rem!important}'
+    '.st-key-hero [data-testid="stColumn"]{flex:1 1 calc(50% - .3rem)!important;min-width:calc(50% - .3rem)!important;width:auto!important}'
+    '.st-key-hero [class*="st-key-metric_"]{padding:12px}'
+    ".st-key-hero .w-ico{width:30px;height:30px;font-size:18px;margin-bottom:6px}"
+    ".st-key-hero .w-metric-value{font-size:24px;line-height:30px}"
+    ".w-hero-title{font-size:22px;line-height:28px}"
+    "}"
     # 'Next to deliver' list
     ".w-order{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--w-border)}"
     ".w-order:first-child{border-top:0;padding-top:0}"

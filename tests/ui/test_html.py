@@ -158,4 +158,11 @@ def test_theme_has_one_brand_color_for_the_hero():
     assert "prefers-reduced-motion:no-preference" in css
     motion = css.split("@media (prefers-reduced-motion:no-preference){", 1)[1]
     assert css.count("scale(.97)") == motion.count("scale(.97)") > 0  # all press motion is motion-safe
-    assert ".stMainBlockContainer{padding-top:1.5rem" in css
+    assert ".stMainBlockContainer{padding-top:5rem" in css  # clears the fixed top nav (~56px) + 24px
+
+
+def test_hero_tiles_stay_two_per_row_on_phones():
+    css = theme.css()
+    phone = css.split("@media (max-width:640px){", 1)[1]
+    assert '.st-key-hero [data-testid="stHorizontalBlock"]{flex-wrap:wrap' in phone
+    assert '.st-key-hero [data-testid="stColumn"]{' in phone
