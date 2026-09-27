@@ -229,3 +229,24 @@ def dialable(phone):
 def whatsapp_link(text, phone=None):
     """wa.me link that only PRE-FILLS the message; the owner still presses send."""
     return f"https://wa.me/{dialable(phone)}?text={quote(str(text or ''), safe='')}"
+
+
+def _items(n):
+    return f"{n} item{'' if n == 1 else 's'}"
+
+
+def headline(metrics):
+    """One plain sentence for the hero: what is late and what is due today."""
+    late, due = metrics.get("overdue", 0), metrics.get("today", 0)
+    if late and due:
+        return f"{_items(late)} late and {due} due today."
+    if late:
+        return f"{_items(late)} late."
+    if due:
+        return f"{_items(due)} due today."
+    return "Nothing is late or due today."
+
+
+def long_date(today):
+    """'Sunday 27 September' (no zero padding, English names)."""
+    return f"{today:%A} {today.day} {today:%B}"

@@ -149,3 +149,14 @@ def test_parse_brief_strips_markdown_and_line_prefix():
     text = "**Status:** ongoing\n1. **My promises**: deliver\nLine 3 - Client's promises: pay Friday"
     assert vm.parse_brief(text) == [("Status", "ongoing"), ("My promises", "deliver"),
                                     ("Client's promises", "pay Friday")]
+
+
+def test_headline():
+    assert vm.headline({"overdue": 2, "today": 1}) == "2 items late and 1 due today."
+    assert vm.headline({"overdue": 1, "today": 0}) == "1 item late."
+    assert vm.headline({"overdue": 0, "today": 3}) == "3 items due today."
+    assert vm.headline({"overdue": 0, "today": 0}) == "Nothing is late or due today."
+
+
+def test_long_date():
+    assert vm.long_date(T) == "Sunday 27 September"
