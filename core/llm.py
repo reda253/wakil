@@ -15,9 +15,7 @@ from dotenv import load_dotenv
 try:
     _orig_getaddrinfo = socket.getaddrinfo
     def _ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
-        if family == 0:
-            family = socket.AF_INET
-        return _orig_getaddrinfo(host, port, family, type, proto, flags)
+        return _orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
     socket.getaddrinfo = _ipv4_getaddrinfo
 except Exception:
     pass
@@ -78,7 +76,7 @@ def _call_gemini(prompt: str, json_mode: bool, timeout: float = 15.0) -> str:
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=api_key, http_options={"timeout": timeout})
+    client = genai.Client(api_key=api_key)
     config = types.GenerateContentConfig(
         temperature=0.1,
     )
